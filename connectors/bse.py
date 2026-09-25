@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 import json
-
+from connectors.symbol_map import get_bse_code
 
 def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.DataFrame:
     """
@@ -71,15 +71,6 @@ def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.Dat
             "qe_low",
             "qe_close",
             "no_of_shrs",
-            "no_trades",
-            "scrip_id" if "scrip_id" in df.columns else "qe_close"
-        ]].copy() if "scrip_id" in df.columns else df[[
-            "RealDate",
-            "qe_open",
-            "qe_high",
-            "qe_low",
-            "qe_close",
-            "no_of_shrs",
             "no_trades"
         ]].copy()
 
@@ -123,3 +114,19 @@ def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.Dat
     except Exception as e:
         print(f"[BSE] Exception for {scripcode}: {e}")
         return pd.DataFrame()
+
+def fetch_bse_historical_by_symbol(symbol: str, from_date: str, to_date: str) -> pd.DataFrame:
+    """
+    Convenience wrapper — fetch BSE historical data using an NSE symbol
+    instead of a raw BSE scripcode.
+
+    Args:
+        symbol    : NSE stock symbol, e.g. "RELIANCE"
+        from_date : Start date in YYYY-MM-DD format
+        to_date   : End date   in YYYY-MM-DD format
+
+    Returns:
+        Same DataFrame as fetch_bse_historical()
+    """
+    scripcode = get_bse_code(symbol)
+    return fetch_bse_historical(scripcode, from_date, to_date)
