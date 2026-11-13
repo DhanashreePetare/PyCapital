@@ -28,7 +28,7 @@ is found.
 
 import pandas as pd
 from datetime import datetime
-from connectors._session_utils import create_nse_session
+from pycapital.connectors._session_utils import create_nse_session
 
 
 def fetch_bulk_deals(from_date, to_date):
@@ -105,8 +105,3 @@ def fetch_bulk_deals(from_date, to_date):
     except Exception as e:
         print(f"[SEBI] Exception fetching bulk deals: {e}")
         return pd.DataFrame(columns=columns)
-
-
-
-# This version keeps a runtime warning so anyone using the library gets told in real time when they're likely hitting the cap — that's the honest, transparent behavior your project doc's "Data Integrity Safety" section calls for, rather than either pretending it's complete or over-engineering a fix for something NSE itself doesn't expose a real path around.
-# My recommendation: ship sebi.py exactly as it currently is — using the confirmed, real, working bulk-block-short-deals endpoint — but document the 70-row cap explicitly and honestly in the docstring, rather than sinking more hours into an unclear path. Here's that final version:

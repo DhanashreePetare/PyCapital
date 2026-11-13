@@ -1,7 +1,7 @@
 import pandas as pd
 import time
 from datetime import datetime, timedelta
-from connectors._session_utils import create_nse_session
+from pycapital.connectors._session_utils import create_nse_session
 
 
 def _fetch_indices_chunk(session, index_name, from_date, to_date):

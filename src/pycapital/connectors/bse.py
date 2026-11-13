@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 import json
-from connectors.symbol_map import get_bse_code
+from pycapital.connectors.symbol_map import get_bse_code
 
 def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.DataFrame:
     """

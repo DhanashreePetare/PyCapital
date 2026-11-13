@@ -18,14 +18,13 @@ Run with:
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from connectors.nse import fetch_nse_historical
-from connectors.bse import fetch_bse_historical
-from connectors.corporate import fetch_corporate_actions
-from connectors.indices import fetch_index_history
-from connectors.fno import fetch_fno_data
-from connectors.amfi import fetch_nav
+from pycapital.connectors.nse import fetch_nse_historical
+from pycapital.connectors.bse import fetch_bse_historical
+from pycapital.connectors.corporate import fetch_corporate_actions
+from pycapital.connectors.indices import fetch_index_history
+from pycapital.connectors.fno import fetch_fno_data
+from pycapital.connectors.amfi import fetch_nav
 
 
 def section(title):

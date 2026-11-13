@@ -9,7 +9,7 @@ same pattern as nse.py / indices.py.
 import pandas as pd
 import time
 from datetime import datetime, timedelta
-from connectors._session_utils import create_nse_session
+from pycapital.connectors._session_utils import create_nse_session
 
 
 def _fetch_fno_chunk(session, symbol, from_date, to_date, expiry_date, instrument_type):
@@ -69,9 +69,7 @@ def _fetch_fno_chunk(session, symbol, from_date, to_date, expiry_date, instrumen
         })
 
         df["source"] = "NSE_FO"
-        df = df[columns[:-1] + ["source"]].copy() if all(
-            c in df.columns for c in columns if c != "source"
-        ) else df
+        df = df[columns].copy()
 
         df["date"] = pd.to_datetime(df["date"], format="%d-%b-%Y", errors="coerce")
         df["expiry_date"] = pd.to_datetime(df["expiry_date"], format="%d-%b-%Y", errors="coerce")

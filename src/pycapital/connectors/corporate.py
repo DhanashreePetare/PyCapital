@@ -1,6 +1,6 @@
 import pandas as pd
 from datetime import datetime
-from connectors._session_utils import create_nse_session
+from pycapital.connectors._session_utils import create_nse_session
 
 
 def fetch_corporate_actions(symbol):
