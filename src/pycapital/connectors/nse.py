@@ -7,7 +7,7 @@ from pycapital.schema import empty_frame
 from pycapital.connectors._session_utils import create_nse_session
 
 
-def _fetch_nse_chunk(session: requests.Session, symbol: str, from_date: str, to_date: str) -> pd.DataFrame:
+def _fetch_nse_chunk(session, symbol, from_date, to_date, series="EQ"):
     """
     Internal function — fetches one chunk from NSE API.
     from_date and to_date must be in DD-MM-YYYY format.
@@ -17,7 +17,7 @@ def _fetch_nse_chunk(session: requests.Session, symbol: str, from_date: str, to_
     params = {
         "functionName": "getHistoricalTradeData",
         "symbol": symbol,
-        "series": "EQ",
+        "series": series,
         "fromDate": from_date,
         "toDate": to_date
     }
@@ -65,7 +65,7 @@ def _fetch_nse_chunk(session: requests.Session, symbol: str, from_date: str, to_
         return empty_frame("equity")
 
 
-def fetch_nse_historical(symbol: str, from_date: str, to_date: str) -> pd.DataFrame:
+def fetch_nse_historical(symbol: str, from_date: str, to_date: str, series: str = "EQ") -> pd.DataFrame:
     """
     Fetch historical OHLCV data for a stock from NSE.
     Handles NSE's 70-row limit automatically by fetching in chunks.
@@ -74,6 +74,7 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str) -> pd.DataFr
         symbol    : NSE stock symbol e.g. "RELIANCE", "TCS"
         from_date : Start date in YYYY-MM-DD format e.g. "2025-09-23"
         to_date   : End date   in YYYY-MM-DD format e.g. "2026-09-23"
+        series    : NSE series, default "EQ" (regular equity)
 
     Returns:
         pandas DataFrame with columns:
@@ -111,7 +112,7 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str) -> pd.DataFr
 
         print(f"[NSE] Fetching chunk: {fmt_from} to {fmt_to}...")
 
-        chunk_df = _fetch_nse_chunk(session, symbol, fmt_from, fmt_to)
+        chunk_df = _fetch_nse_chunk(session, symbol, fmt_from, fmt_to, series)
 
         if not chunk_df.empty:
             all_chunks.append(chunk_df)
