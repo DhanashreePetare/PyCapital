@@ -27,11 +27,12 @@ is found.
 """
 
 import pandas as pd
+import logging
 from datetime import datetime
 from pycapital.connectors._session_utils import create_nse_session
 from pycapital.schema import empty_frame
 
-
+logger = logging.getLogger(__name__)
 def fetch_bulk_deals(from_date, to_date):
     """
     Fetch SEBI-mandated Bulk Deals disclosures from NSE.
@@ -72,7 +73,7 @@ def fetch_bulk_deals(from_date, to_date):
         data = payload.get("data", []) if isinstance(payload, dict) else payload
 
         if not data:
-            print(f"[SEBI] No bulk deals found for {from_date} to {to_date}")
+            logger.warning(f"[SEBI] No bulk deals found for {from_date} to {to_date}")
             return empty_frame("bulk_deals")
 
         df = pd.DataFrame(data)
@@ -97,12 +98,12 @@ def fetch_bulk_deals(from_date, to_date):
         df = df.sort_values("date").reset_index(drop=True)
 
         if len(df) >= 70:
-            print(f"[SEBI] ⚠️  Warning: {len(df)} rows returned — at NSE's known 70-row "
+            logger.warning(f"[SEBI] ⚠️  Warning: {len(df)} rows returned — at NSE's known 70-row "
                   f"cap. Older deals within {from_date} to {to_date} may be missing. "
                   f"See module docstring for details.")
 
         return df
 
     except Exception as e:
-        print(f"[SEBI] Exception fetching bulk deals: {e}")
+        logger.error(f"[SEBI] Exception fetching bulk deals: {e}")
         return empty_frame("bulk_deals")

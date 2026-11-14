@@ -1,9 +1,11 @@
 import pandas as pd
 import time
+import logging
 from datetime import datetime, timedelta
 from pycapital.connectors._session_utils import create_nse_session
 from pycapital.schema import empty_frame
 
+logger = logging.getLogger(__name__) 
 
 def _fetch_indices_chunk(session, index_name, from_date, to_date):
     """
@@ -46,7 +48,7 @@ def _fetch_indices_chunk(session, index_name, from_date, to_date):
         return df
 
     except Exception as e:
-        print(f"[Indices] Chunk fetch error: {e}")
+        logger.error(f"[Indices] Chunk fetch error: {e}")
         return empty_frame("index")
 
 
@@ -71,14 +73,14 @@ def fetch_index_history(index_name, from_date, to_date):
         start = datetime.strptime(from_date, "%Y-%m-%d")
         end   = datetime.strptime(to_date,   "%Y-%m-%d")
     except ValueError:
-        print(f"[Indices] Invalid date format. Use YYYY-MM-DD")
+        logger.error(f"[Indices] Invalid date format. Use YYYY-MM-DD")
         return empty_frame("index")
 
     if start > end:
-        print(f"[Indices] from_date cannot be after to_date")
+        logger.error(f"[Indices] from_date cannot be after to_date")
         return empty_frame("index")
 
-    print(f"[Indices] Fetching {index_name} from {from_date} to {to_date}...")
+    logger.info(f"[Indices] Fetching {index_name} from {from_date} to {to_date}...")
     session = create_nse_session()
 
     CHUNK_DAYS = 60
@@ -91,7 +93,7 @@ def fetch_index_history(index_name, from_date, to_date):
         fmt_from = chunk_start.strftime("%d-%m-%Y")
         fmt_to   = chunk_end.strftime("%d-%m-%Y")
 
-        print(f"[Indices] Fetching chunk: {fmt_from} to {fmt_to}...")
+        logger.info(f"[Indices] Fetching chunk: {fmt_from} to {fmt_to}...")
         chunk_df = _fetch_indices_chunk(session, index_name, fmt_from, fmt_to)
 
         if not chunk_df.empty:
@@ -102,12 +104,12 @@ def fetch_index_history(index_name, from_date, to_date):
             time.sleep(1)
 
     if not all_chunks:
-        print(f"[Indices] No data returned for {index_name}")
+        logger.warning(f"[Indices] No data returned for {index_name}")
         return empty_frame("index")
 
     df = pd.concat(all_chunks, ignore_index=True)
     df = df.drop_duplicates(subset=["date"])
     df = df.sort_values("date").reset_index(drop=True)
 
-    print(f"[Indices] ✅ {index_name} — {len(df)} rows fetched")
+    logger.info(f"[Indices] ✅ {index_name} — {len(df)} rows fetched")
     return df

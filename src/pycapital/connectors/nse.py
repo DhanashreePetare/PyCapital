@@ -2,10 +2,12 @@ import requests
 import pandas as pd
 import json
 import time
+import logging
 from datetime import datetime, timedelta
 from pycapital.schema import empty_frame
 from pycapital.connectors._session_utils import create_nse_session
 
+logger = logging.getLogger(__name__)
 
 def _fetch_nse_chunk(session, symbol, from_date, to_date, series="EQ"):
     """
@@ -61,7 +63,7 @@ def _fetch_nse_chunk(session, symbol, from_date, to_date, series="EQ"):
         return df
 
     except Exception as e:
-        print(f"[NSE] Chunk fetch error: {e}")
+        logger.error(f"[NSE] Chunk fetch error: {e}")
         return empty_frame("equity")
 
 
@@ -86,15 +88,15 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str, series: str 
         start = datetime.strptime(from_date, "%Y-%m-%d")
         end   = datetime.strptime(to_date,   "%Y-%m-%d")
     except ValueError:
-        print(f"[NSE] Invalid date format. Use YYYY-MM-DD")
+        logger.error(f"[NSE] Invalid date format. Use YYYY-MM-DD")
         return empty_frame("equity")
 
     if start > end:
-        print(f"[NSE] from_date cannot be after to_date")
+        logger.error(f"[NSE] from_date cannot be after to_date")
         return empty_frame("equity")
 
     # Create session once — reuse for all chunks
-    print(f"[NSE] Fetching {symbol} from {from_date} to {to_date}...")
+    logger.info(f"[NSE] Fetching {symbol} from {from_date} to {to_date}...")
     session = create_nse_session(symbol)
 
     # NSE limit = 70 rows ≈ 60 trading days safely
@@ -110,7 +112,7 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str, series: str 
         fmt_from = chunk_start.strftime("%d-%m-%Y")
         fmt_to   = chunk_end.strftime("%d-%m-%Y")
 
-        print(f"[NSE] Fetching chunk: {fmt_from} to {fmt_to}...")
+        logger.info(f"[NSE] Fetching chunk: {fmt_from} to {fmt_to}...")
 
         chunk_df = _fetch_nse_chunk(session, symbol, fmt_from, fmt_to, series)
 
@@ -125,7 +127,7 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str, series: str 
             time.sleep(1)
 
     if not all_chunks:
-        print(f"[NSE] No data returned for {symbol}")
+        logger.warning(f"[NSE] No data returned for {symbol}")
         return empty_frame("equity")
 
     # Combine all chunks
@@ -141,6 +143,6 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str, series: str 
     # Sort oldest to newest
     df = df.sort_values("date").reset_index(drop=True)
 
-    print(f"[NSE] ✅ {symbol} — {len(df)} rows fetched")
+    logger.info(f"[NSE] ✅ {symbol} — {len(df)} rows fetched")
 
     return df

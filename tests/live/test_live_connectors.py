@@ -1,7 +1,7 @@
 import sys
 import os
+import logging
 from datetime import datetime
-
 from pycapital.connectors.nse import fetch_nse_historical
 from pycapital.connectors.bse import fetch_bse_historical
 from pycapital.connectors.corporate import fetch_corporate_actions
@@ -10,6 +10,7 @@ from pycapital.connectors.indices import fetch_index_history
 from pycapital.connectors.sebi import fetch_bulk_deals
 from pycapital.connectors.amfi import fetch_nav
 
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 def print_header(title):
     print("\n" + "=" * 60)

@@ -14,11 +14,13 @@ via list_schemes() before assuming a code matches a fund name.
 
 import requests
 import pandas as pd
+import logging
 from datetime import datetime
 from pycapital.schema import empty_frame
 
 BASE_URL = "https://api.mfapi.in/mf"
 
+logger = logging.getLogger(__name__)
 
 def list_schemes() -> pd.DataFrame:
     """
@@ -33,7 +35,7 @@ def list_schemes() -> pd.DataFrame:
         response.raise_for_status()
         return pd.DataFrame(response.json())
     except Exception as e:
-        print(f"[AMFI] Error fetching scheme list: {e}")
+        logger.error(f"[AMFI] Error fetching scheme list: {e}")
         return pd.DataFrame(columns=["schemeCode", "schemeName"])
 
 
@@ -62,13 +64,13 @@ def fetch_nav(scheme_code, from_date=None, to_date=None) -> pd.DataFrame:
         response = requests.get(url, timeout=15)
 
         if response.status_code != 200:
-            print(f"[AMFI] Error: status code {response.status_code} for scheme {scheme_code}")
+            logger.error(f"[AMFI] Error: status code {response.status_code} for scheme {scheme_code}")
             return empty_frame("nav")
 
         payload = response.json()
 
         if not payload.get("data"):
-            print(f"[AMFI] No NAV data returned for scheme code {scheme_code}")
+            logger.warning(f"[AMFI] No NAV data returned for scheme code {scheme_code}")
             return empty_frame("nav")
 
         scheme_name = payload.get("meta", {}).get("scheme_name", "")
@@ -93,5 +95,5 @@ def fetch_nav(scheme_code, from_date=None, to_date=None) -> pd.DataFrame:
         return df
 
     except Exception as e:
-        print(f"[AMFI] Exception for scheme {scheme_code}: {e}")
+        logger.error(f"[AMFI] Exception for scheme {scheme_code}: {e}")
         return empty_frame("nav")

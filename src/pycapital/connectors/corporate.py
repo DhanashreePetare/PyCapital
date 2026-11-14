@@ -1,8 +1,10 @@
 import pandas as pd
+import logging
 from datetime import datetime
 from pycapital.connectors._session_utils import create_nse_session
 from pycapital.schema import empty_frame
 
+logger = logging.getLogger(__name__)
 
 def fetch_corporate_actions(symbol):
     """
@@ -31,7 +33,7 @@ def fetch_corporate_actions(symbol):
 
         data = response.json()
         if not data:
-            print(f"[Corporate] No actions found for {symbol}")
+            logger.warning(f"[Corporate] No actions found for {symbol}")
             return empty_frame("corporate_actions")
 
         df = pd.DataFrame(data)
@@ -57,7 +59,7 @@ def fetch_corporate_actions(symbol):
         return df
 
     except Exception as e:
-        print(f"[Corporate] Error fetching actions for {symbol}: {e}")
+        logger.error(f"[Corporate] Error fetching actions for {symbol}: {e}")
         return empty_frame("corporate_actions")
 
 

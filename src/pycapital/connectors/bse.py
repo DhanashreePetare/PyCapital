@@ -2,9 +2,12 @@ import requests
 import pandas as pd
 import json
 import time
+import logging
 from datetime import datetime, timedelta
 from pycapital.connectors.symbol_map import get_bse_code
 from pycapital.schema import empty_frame
+
+logger = logging.getLogger(__name__)
 
 def _fetch_bse_chunk(scripcode: str, from_date: str, to_date: str) -> pd.DataFrame:
     """
@@ -52,7 +55,7 @@ def _fetch_bse_chunk(scripcode: str, from_date: str, to_date: str) -> pd.DataFra
         response = requests.get(url, headers=headers, timeout=30)
 
         if response.status_code != 200:
-            print(f"[BSE] Error: status code {response.status_code} for {scripcode}")
+            logger.error(f"[BSE] Error: status code {response.status_code} for {scripcode}")
             return empty_frame("equity")
 
         data = response.json()
@@ -61,7 +64,7 @@ def _fetch_bse_chunk(scripcode: str, from_date: str, to_date: str) -> pd.DataFra
         records = data.get("StockData")
 
         if not records:
-            print(f"[BSE] No records found for scripcode {scripcode}")
+            logger.warning(f"[BSE] No records found for scripcode {scripcode}")
             return empty_frame("equity")
 
         df = pd.DataFrame(records)
@@ -115,7 +118,7 @@ def _fetch_bse_chunk(scripcode: str, from_date: str, to_date: str) -> pd.DataFra
         return df
 
     except Exception as e:
-        print(f"[BSE] Exception for {scripcode}: {e}")
+        logger.error(f"[BSE] Exception for {scripcode}: {e}")
         return empty_frame("equity")
 
 def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.DataFrame:
@@ -137,11 +140,11 @@ def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.Dat
         start = datetime.strptime(from_date, "%Y-%m-%d")
         end   = datetime.strptime(to_date,   "%Y-%m-%d")
     except ValueError:
-        print("[BSE] Invalid date format. Use YYYY-MM-DD")
+        logger.error("[BSE] Invalid date format. Use YYYY-MM-DD")
         return empty_frame("equity")
 
     if start > end:
-        print("[BSE] from_date cannot be after to_date")
+        logger.error("[BSE] from_date cannot be after to_date")
         return empty_frame("equity")
 
     CHUNK_DAYS = 30
@@ -164,7 +167,7 @@ def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.Dat
         if chunk_df is not None and not chunk_df.empty:
             all_chunks.append(chunk_df)
         else:
-            print(f"[BSE] ⚠️ Could not fetch {chunk_start.date()} to {chunk_end.date()} "
+            logger.warning(f"[BSE] ⚠️ Could not fetch {chunk_start.date()} to {chunk_end.date()} "
                   f"after 3 attempts — result may be incomplete")        
 
         chunk_start = chunk_end + timedelta(days=1)
