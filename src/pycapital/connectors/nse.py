@@ -13,15 +13,17 @@ def _fetch_nse_chunk(session: requests.Session, symbol: str, from_date: str, to_
     from_date and to_date must be in DD-MM-YYYY format.
     Returns raw DataFrame or empty DataFrame on failure.
     """
-    url = (
-        f"https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi"
-        f"?functionName=getHistoricalTradeData"
-        f"&symbol={symbol}&series=EQ"
-        f"&fromDate={from_date}&toDate={to_date}"
-    )
+    url = "https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi"
+    params = {
+        "functionName": "getHistoricalTradeData",
+        "symbol": symbol,
+        "series": "EQ",
+        "fromDate": from_date,
+        "toDate": to_date
+    }
 
     try:
-        response = session.get(url, timeout=15)
+        response = session.get(url, params=params, timeout=15)
 
         if response.status_code != 200:
             return empty_frame("equity")
