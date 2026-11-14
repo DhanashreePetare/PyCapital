@@ -4,6 +4,7 @@ import json
 import time
 from datetime import datetime, timedelta
 from pycapital.schema import empty_frame
+from pycapital.connectors._session_utils import create_nse_session
 
 
 def _fetch_nse_chunk(session: requests.Session, symbol: str, from_date: str, to_date: str) -> pd.DataFrame:
@@ -62,29 +63,6 @@ def _fetch_nse_chunk(session: requests.Session, symbol: str, from_date: str, to_
         return empty_frame("equity")
 
 
-def _create_nse_session(symbol: str) -> requests.Session:
-    """Creates and warms up an NSE session."""
-    session = requests.Session()
-    session.headers.update({
-        "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept":          "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Referer":         f"https://www.nseindia.com/get-quote/equity/{symbol}",
-        "sec-fetch-dest":  "empty",
-        "sec-fetch-mode":  "cors",
-        "sec-fetch-site":  "same-origin",
-        "Connection":      "keep-alive"
-    })
-
-    session.get("https://www.nseindia.com", timeout=15)
-    time.sleep(3)
-    session.get(f"https://www.nseindia.com/get-quote/equity/{symbol}", timeout=15)
-    time.sleep(2)
-
-    return session
-
-
 def fetch_nse_historical(symbol: str, from_date: str, to_date: str) -> pd.DataFrame:
     """
     Fetch historical OHLCV data for a stock from NSE.
@@ -114,7 +92,7 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str) -> pd.DataFr
 
     # Create session once — reuse for all chunks
     print(f"[NSE] Fetching {symbol} from {from_date} to {to_date}...")
-    session = _create_nse_session(symbol)
+    session = create_nse_session(symbol)
 
     # NSE limit = 70 rows ≈ 60 trading days safely
     # We use 60-day chunks to stay well within limit
