@@ -8,9 +8,12 @@ same pattern as nse.py / indices.py.
 
 import pandas as pd
 import time
+import logging
 from datetime import datetime, timedelta
-from connectors._session_utils import create_nse_session
+from pycapital.connectors._session_utils import create_nse_session
+from pycapital.schema import empty_frame
 
+logger = logging.getLogger(__name__)
 
 def _fetch_fno_chunk(session, symbol, from_date, to_date, expiry_date, instrument_type):
     """
@@ -45,7 +48,7 @@ def _fetch_fno_chunk(session, symbol, from_date, to_date, expiry_date, instrumen
         data = payload.get("data", []) if isinstance(payload, dict) else payload
 
         if not data:
-            return pd.DataFrame(columns=columns)
+            return empty_frame("fno")
 
         df = pd.DataFrame(data)
 
@@ -69,9 +72,7 @@ def _fetch_fno_chunk(session, symbol, from_date, to_date, expiry_date, instrumen
         })
 
         df["source"] = "NSE_FO"
-        df = df[columns[:-1] + ["source"]].copy() if all(
-            c in df.columns for c in columns if c != "source"
-        ) else df
+        df = df[columns].copy()
 
         df["date"] = pd.to_datetime(df["date"], format="%d-%b-%Y", errors="coerce")
         df["expiry_date"] = pd.to_datetime(df["expiry_date"], format="%d-%b-%Y", errors="coerce")
@@ -85,8 +86,8 @@ def _fetch_fno_chunk(session, symbol, from_date, to_date, expiry_date, instrumen
         return df
 
     except Exception as e:
-        print(f"[FNO] Chunk fetch error: {e}")
-        return pd.DataFrame(columns=columns)
+        logger.error(f"[FNO] Chunk fetch error: {e}")
+        return empty_frame("fno")
 
 
 def fetch_fno_data(symbol, from_date, to_date, expiry_date, instrument_type="FUTSTK"):
@@ -117,14 +118,14 @@ def fetch_fno_data(symbol, from_date, to_date, expiry_date, instrument_type="FUT
         start = datetime.strptime(from_date, "%Y-%m-%d")
         end   = datetime.strptime(to_date,   "%Y-%m-%d")
     except ValueError:
-        print(f"[FNO] Invalid date format. Use YYYY-MM-DD")
-        return pd.DataFrame()
+        logger.error(f"[FNO] Invalid date format. Use YYYY-MM-DD")
+        return empty_frame("fno")
 
     if start > end:
-        print(f"[FNO] from_date cannot be after to_date")
-        return pd.DataFrame()
+        logger.error(f"[FNO] from_date cannot be after to_date")
+        return empty_frame("fno")
 
-    print(f"[FNO] Fetching {symbol} ({instrument_type}) from {from_date} to {to_date}...")
+    logger.info(f"[FNO] Fetching {symbol} ({instrument_type}) from {from_date} to {to_date}...")
     session = create_nse_session()
 
     CHUNK_DAYS = 60
@@ -137,7 +138,7 @@ def fetch_fno_data(symbol, from_date, to_date, expiry_date, instrument_type="FUT
         fmt_from = chunk_start.strftime("%d-%m-%Y")
         fmt_to   = chunk_end.strftime("%d-%m-%Y")
 
-        print(f"[FNO] Fetching chunk: {fmt_from} to {fmt_to}...")
+        logger.info(f"[FNO] Fetching chunk: {fmt_from} to {fmt_to}...")
         chunk_df = _fetch_fno_chunk(session, symbol, fmt_from, fmt_to, expiry_date, instrument_type)
 
         if not chunk_df.empty:
@@ -148,12 +149,12 @@ def fetch_fno_data(symbol, from_date, to_date, expiry_date, instrument_type="FUT
             time.sleep(1)
 
     if not all_chunks:
-        print(f"[FNO] No data returned for {symbol}")
-        return pd.DataFrame()
+        logger.warning(f"[FNO] No data returned for {symbol}")
+        return empty_frame("fno")
 
     df = pd.concat(all_chunks, ignore_index=True)
     df = df.drop_duplicates(subset=["date", "expiry_date", "option_type", "strike_price"])
     df = df.sort_values("date").reset_index(drop=True)
 
-    print(f"[FNO] ✅ {symbol} — {len(df)} rows fetched")
+    logger.info(f"[FNO] ✅ {symbol} — {len(df)} rows fetched")
     return df

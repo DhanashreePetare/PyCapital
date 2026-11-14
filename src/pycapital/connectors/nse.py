@@ -2,35 +2,41 @@ import requests
 import pandas as pd
 import json
 import time
+import logging
 from datetime import datetime, timedelta
+from pycapital.schema import empty_frame
+from pycapital.connectors._session_utils import create_nse_session
 
+logger = logging.getLogger(__name__)
 
-def _fetch_nse_chunk(session: requests.Session, symbol: str, from_date: str, to_date: str) -> pd.DataFrame:
+def _fetch_nse_chunk(session, symbol, from_date, to_date, series="EQ"):
     """
     Internal function — fetches one chunk from NSE API.
     from_date and to_date must be in DD-MM-YYYY format.
     Returns raw DataFrame or empty DataFrame on failure.
     """
-    url = (
-        f"https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi"
-        f"?functionName=getHistoricalTradeData"
-        f"&symbol={symbol}&series=EQ"
-        f"&fromDate={from_date}&toDate={to_date}"
-    )
+    url = "https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi"
+    params = {
+        "functionName": "getHistoricalTradeData",
+        "symbol": symbol,
+        "series": series,
+        "fromDate": from_date,
+        "toDate": to_date
+    }
 
     try:
-        response = session.get(url, timeout=15)
+        response = session.get(url, params=params, timeout=15)
 
         if response.status_code != 200:
-            return pd.DataFrame()
+            return empty_frame("equity")
 
         text = response.text.strip()
         if not text or text == "null" or text == "[]":
-            return pd.DataFrame()
+            return empty_frame("equity")
 
         data = json.loads(text)
         if not data:
-            return pd.DataFrame()
+            return empty_frame("equity")
 
         df = pd.DataFrame(data)
 
@@ -57,34 +63,11 @@ def _fetch_nse_chunk(session: requests.Session, symbol: str, from_date: str, to_
         return df
 
     except Exception as e:
-        print(f"[NSE] Chunk fetch error: {e}")
-        return pd.DataFrame()
+        logger.error(f"[NSE] Chunk fetch error: {e}")
+        return empty_frame("equity")
 
 
-def _create_nse_session(symbol: str) -> requests.Session:
-    """Creates and warms up an NSE session."""
-    session = requests.Session()
-    session.headers.update({
-        "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept":          "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Referer":         f"https://www.nseindia.com/get-quote/equity/{symbol}",
-        "sec-fetch-dest":  "empty",
-        "sec-fetch-mode":  "cors",
-        "sec-fetch-site":  "same-origin",
-        "Connection":      "keep-alive"
-    })
-
-    session.get("https://www.nseindia.com", timeout=15)
-    time.sleep(3)
-    session.get(f"https://www.nseindia.com/get-quote/equity/{symbol}", timeout=15)
-    time.sleep(2)
-
-    return session
-
-
-def fetch_nse_historical(symbol: str, from_date: str, to_date: str) -> pd.DataFrame:
+def fetch_nse_historical(symbol: str, from_date: str, to_date: str, series: str = "EQ") -> pd.DataFrame:
     """
     Fetch historical OHLCV data for a stock from NSE.
     Handles NSE's 70-row limit automatically by fetching in chunks.
@@ -93,6 +76,7 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str) -> pd.DataFr
         symbol    : NSE stock symbol e.g. "RELIANCE", "TCS"
         from_date : Start date in YYYY-MM-DD format e.g. "2025-09-23"
         to_date   : End date   in YYYY-MM-DD format e.g. "2026-09-23"
+        series    : NSE series, default "EQ" (regular equity)
 
     Returns:
         pandas DataFrame with columns:
@@ -104,16 +88,16 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str) -> pd.DataFr
         start = datetime.strptime(from_date, "%Y-%m-%d")
         end   = datetime.strptime(to_date,   "%Y-%m-%d")
     except ValueError:
-        print(f"[NSE] Invalid date format. Use YYYY-MM-DD")
-        return pd.DataFrame()
+        logger.error(f"[NSE] Invalid date format. Use YYYY-MM-DD")
+        return empty_frame("equity")
 
     if start > end:
-        print(f"[NSE] from_date cannot be after to_date")
-        return pd.DataFrame()
+        logger.error(f"[NSE] from_date cannot be after to_date")
+        return empty_frame("equity")
 
     # Create session once — reuse for all chunks
-    print(f"[NSE] Fetching {symbol} from {from_date} to {to_date}...")
-    session = _create_nse_session(symbol)
+    logger.info(f"[NSE] Fetching {symbol} from {from_date} to {to_date}...")
+    session = create_nse_session(symbol)
 
     # NSE limit = 70 rows ≈ 60 trading days safely
     # We use 60-day chunks to stay well within limit
@@ -128,9 +112,9 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str) -> pd.DataFr
         fmt_from = chunk_start.strftime("%d-%m-%Y")
         fmt_to   = chunk_end.strftime("%d-%m-%Y")
 
-        print(f"[NSE] Fetching chunk: {fmt_from} to {fmt_to}...")
+        logger.info(f"[NSE] Fetching chunk: {fmt_from} to {fmt_to}...")
 
-        chunk_df = _fetch_nse_chunk(session, symbol, fmt_from, fmt_to)
+        chunk_df = _fetch_nse_chunk(session, symbol, fmt_from, fmt_to, series)
 
         if not chunk_df.empty:
             all_chunks.append(chunk_df)
@@ -143,8 +127,8 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str) -> pd.DataFr
             time.sleep(1)
 
     if not all_chunks:
-        print(f"[NSE] No data returned for {symbol}")
-        return pd.DataFrame()
+        logger.warning(f"[NSE] No data returned for {symbol}")
+        return empty_frame("equity")
 
     # Combine all chunks
     df = pd.concat(all_chunks, ignore_index=True)
@@ -159,6 +143,6 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str) -> pd.DataFr
     # Sort oldest to newest
     df = df.sort_values("date").reset_index(drop=True)
 
-    print(f"[NSE] ✅ {symbol} — {len(df)} rows fetched")
+    logger.info(f"[NSE] ✅ {symbol} — {len(df)} rows fetched")
 
     return df

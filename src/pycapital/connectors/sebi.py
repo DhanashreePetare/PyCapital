@@ -27,10 +27,12 @@ is found.
 """
 
 import pandas as pd
+import logging
 from datetime import datetime
-from connectors._session_utils import create_nse_session
+from pycapital.connectors._session_utils import create_nse_session
+from pycapital.schema import empty_frame
 
-
+logger = logging.getLogger(__name__)
 def fetch_bulk_deals(from_date, to_date):
     """
     Fetch SEBI-mandated Bulk Deals disclosures from NSE.
@@ -71,8 +73,8 @@ def fetch_bulk_deals(from_date, to_date):
         data = payload.get("data", []) if isinstance(payload, dict) else payload
 
         if not data:
-            print(f"[SEBI] No bulk deals found for {from_date} to {to_date}")
-            return pd.DataFrame(columns=columns)
+            logger.warning(f"[SEBI] No bulk deals found for {from_date} to {to_date}")
+            return empty_frame("bulk_deals")
 
         df = pd.DataFrame(data)
 
@@ -96,17 +98,12 @@ def fetch_bulk_deals(from_date, to_date):
         df = df.sort_values("date").reset_index(drop=True)
 
         if len(df) >= 70:
-            print(f"[SEBI] ⚠️  Warning: {len(df)} rows returned — at NSE's known 70-row "
+            logger.warning(f"[SEBI] ⚠️  Warning: {len(df)} rows returned — at NSE's known 70-row "
                   f"cap. Older deals within {from_date} to {to_date} may be missing. "
                   f"See module docstring for details.")
 
         return df
 
     except Exception as e:
-        print(f"[SEBI] Exception fetching bulk deals: {e}")
-        return pd.DataFrame(columns=columns)
-
-
-
-# This version keeps a runtime warning so anyone using the library gets told in real time when they're likely hitting the cap — that's the honest, transparent behavior your project doc's "Data Integrity Safety" section calls for, rather than either pretending it's complete or over-engineering a fix for something NSE itself doesn't expose a real path around.
-# My recommendation: ship sebi.py exactly as it currently is — using the confirmed, real, working bulk-block-short-deals endpoint — but document the 70-row cap explicitly and honestly in the docstring, rather than sinking more hours into an unclear path. Here's that final version:
+        logger.error(f"[SEBI] Exception fetching bulk deals: {e}")
+        return empty_frame("bulk_deals")
