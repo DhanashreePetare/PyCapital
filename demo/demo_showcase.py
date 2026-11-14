@@ -9,8 +9,8 @@ This is NOT a test file (see tests/test_connectors.py for that) —
 this is a presentation script. Output is intentionally clean and
 narrated for a live demo.
 
-SEBI Bulk Deals is intentionally excluded — that connector is still
-being finalized (see project notes on NSE's undocumented row cap).
+SEBI Bulk Deals is not demonstrated here because NSE caps each 
+query at 70 records (documented in sebi.py).
 
 Run with:
     python demo_showcase.py
@@ -252,8 +252,8 @@ print("""
   NSE Indices               ✓ WORKING   NIFTY 50 with pagination
   NSE F&O Derivatives      ✓ WORKING   Real futures contract data
   AMFI Mutual Funds         ✓ WORKING   13+ years of NAV history
-  SEBI Bulk Deals           ⧗ IN PROGRESS  Endpoint found, pagination
-                                        limit under investigation
+  SEBI Bulk Deals           ✓ WORKING*     Real data; NSE caps each query
+                                        at 70 records (documented)
 
   KEY PROOF POINT: NSE and BSE — two independent, government-regulated
   exchanges — return closing prices that agree within a fraction of a
