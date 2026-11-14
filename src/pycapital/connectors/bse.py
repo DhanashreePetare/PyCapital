@@ -1,10 +1,12 @@
 import requests
 import pandas as pd
 import json
+import time
+from datetime import datetime, timedelta
 from pycapital.connectors.symbol_map import get_bse_code
 from pycapital.schema import empty_frame
 
-def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.DataFrame:
+def _fetch_bse_chunk(scripcode: str, from_date: str, to_date: str) -> pd.DataFrame:
     """
     Fetch historical OHLCV data for a stock from BSE.
 
@@ -47,7 +49,7 @@ def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.Dat
     )
 
     try:
-        response = requests.get(url, headers=headers, timeout=15)
+        response = requests.get(url, headers=headers, timeout=30)
 
         if response.status_code != 200:
             print(f"[BSE] Error: status code {response.status_code} for {scripcode}")
@@ -115,6 +117,66 @@ def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.Dat
     except Exception as e:
         print(f"[BSE] Exception for {scripcode}: {e}")
         return empty_frame("equity")
+
+def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.DataFrame:
+    """
+    Fetch historical OHLCV data for a stock from BSE.
+    Handles BSE's 31-row-per-request cap automatically by fetching
+    in 30-day chunks and stitching them together.
+
+    Args:
+        scripcode : BSE stock code e.g. "500325" for Reliance
+        from_date : Start date in YYYY-MM-DD format
+        to_date   : End date   in YYYY-MM-DD format
+
+    Returns:
+        pandas DataFrame with columns:
+        date, open, high, low, close, volume, trades, symbol, source
+    """
+    try:
+        start = datetime.strptime(from_date, "%Y-%m-%d")
+        end   = datetime.strptime(to_date,   "%Y-%m-%d")
+    except ValueError:
+        print("[BSE] Invalid date format. Use YYYY-MM-DD")
+        return empty_frame("equity")
+
+    if start > end:
+        print("[BSE] from_date cannot be after to_date")
+        return empty_frame("equity")
+
+    CHUNK_DAYS = 30
+    all_chunks = []
+    chunk_start = start
+
+    while chunk_start <= end:
+        chunk_end = min(chunk_start + timedelta(days=CHUNK_DAYS), end)
+
+        chunk_df = None
+        for attempt in range(3):
+            chunk_df = _fetch_bse_chunk(
+                scripcode,
+                chunk_start.strftime("%Y-%m-%d"),
+                chunk_end.strftime("%Y-%m-%d"),
+            )
+            if not chunk_df.empty:
+                break
+            time.sleep(2 * (attempt + 1))
+        if chunk_df is not None and not chunk_df.empty:
+            all_chunks.append(chunk_df)
+        else:
+            print(f"[BSE] ⚠️ Could not fetch {chunk_start.date()} to {chunk_end.date()} "
+                  f"after 3 attempts — result may be incomplete")        
+
+        chunk_start = chunk_end + timedelta(days=1)
+        if chunk_start <= end:
+            time.sleep(1)
+
+    if not all_chunks:
+        return empty_frame("equity")
+
+    df = pd.concat(all_chunks, ignore_index=True)
+    df = df.drop_duplicates(subset=["date"])
+    return df.sort_values("date").reset_index(drop=True)
 
 def fetch_bse_historical_by_symbol(symbol: str, from_date: str, to_date: str) -> pd.DataFrame:
     """
