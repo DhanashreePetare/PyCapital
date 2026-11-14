@@ -15,6 +15,7 @@ via list_schemes() before assuming a code matches a fund name.
 import requests
 import pandas as pd
 from datetime import datetime
+from pycapital.schema import empty_frame
 
 BASE_URL = "https://api.mfapi.in/mf"
 
@@ -62,13 +63,13 @@ def fetch_nav(scheme_code, from_date=None, to_date=None) -> pd.DataFrame:
 
         if response.status_code != 200:
             print(f"[AMFI] Error: status code {response.status_code} for scheme {scheme_code}")
-            return pd.DataFrame(columns=columns)
+            return empty_frame("nav")
 
         payload = response.json()
 
         if not payload.get("data"):
             print(f"[AMFI] No NAV data returned for scheme code {scheme_code}")
-            return pd.DataFrame(columns=columns)
+            return empty_frame("nav")
 
         scheme_name = payload.get("meta", {}).get("scheme_name", "")
 
@@ -93,4 +94,4 @@ def fetch_nav(scheme_code, from_date=None, to_date=None) -> pd.DataFrame:
 
     except Exception as e:
         print(f"[AMFI] Exception for scheme {scheme_code}: {e}")
-        return pd.DataFrame(columns=columns)
+        return empty_frame("nav")

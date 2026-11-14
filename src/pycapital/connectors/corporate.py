@@ -1,6 +1,7 @@
 import pandas as pd
 from datetime import datetime
 from pycapital.connectors._session_utils import create_nse_session
+from pycapital.schema import empty_frame
 
 
 def fetch_corporate_actions(symbol):
@@ -31,7 +32,7 @@ def fetch_corporate_actions(symbol):
         data = response.json()
         if not data:
             print(f"[Corporate] No actions found for {symbol}")
-            return pd.DataFrame(columns=columns)
+            return empty_frame("corporate_actions")
 
         df = pd.DataFrame(data)
 
@@ -57,7 +58,7 @@ def fetch_corporate_actions(symbol):
 
     except Exception as e:
         print(f"[Corporate] Error fetching actions for {symbol}: {e}")
-        return pd.DataFrame(columns=columns)
+        return empty_frame("corporate_actions")
 
 
 def extract_action_type(action_detail):

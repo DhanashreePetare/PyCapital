@@ -2,6 +2,7 @@ import pandas as pd
 import time
 from datetime import datetime, timedelta
 from pycapital.connectors._session_utils import create_nse_session
+from pycapital.schema import empty_frame
 
 
 def _fetch_indices_chunk(session, index_name, from_date, to_date):
@@ -20,7 +21,7 @@ def _fetch_indices_chunk(session, index_name, from_date, to_date):
 
         data = response.json().get("data", [])
         if not data:
-            return pd.DataFrame(columns=columns)
+            return empty_frame("index")
 
         df = pd.DataFrame(data)
 
@@ -46,7 +47,7 @@ def _fetch_indices_chunk(session, index_name, from_date, to_date):
 
     except Exception as e:
         print(f"[Indices] Chunk fetch error: {e}")
-        return pd.DataFrame(columns=columns)
+        return empty_frame("index")
 
 
 def fetch_index_history(index_name, from_date, to_date):
@@ -71,11 +72,11 @@ def fetch_index_history(index_name, from_date, to_date):
         end   = datetime.strptime(to_date,   "%Y-%m-%d")
     except ValueError:
         print(f"[Indices] Invalid date format. Use YYYY-MM-DD")
-        return pd.DataFrame(columns=columns)
+        return empty_frame("index")
 
     if start > end:
         print(f"[Indices] from_date cannot be after to_date")
-        return pd.DataFrame(columns=columns)
+        return empty_frame("index")
 
     print(f"[Indices] Fetching {index_name} from {from_date} to {to_date}...")
     session = create_nse_session()
@@ -102,7 +103,7 @@ def fetch_index_history(index_name, from_date, to_date):
 
     if not all_chunks:
         print(f"[Indices] No data returned for {index_name}")
-        return pd.DataFrame(columns=columns)
+        return empty_frame("index")
 
     df = pd.concat(all_chunks, ignore_index=True)
     df = df.drop_duplicates(subset=["date"])

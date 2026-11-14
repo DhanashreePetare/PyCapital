@@ -2,6 +2,7 @@ import requests
 import pandas as pd
 import json
 from pycapital.connectors.symbol_map import get_bse_code
+from pycapital.schema import empty_frame
 
 def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.DataFrame:
     """
@@ -50,7 +51,7 @@ def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.Dat
 
         if response.status_code != 200:
             print(f"[BSE] Error: status code {response.status_code} for {scripcode}")
-            return pd.DataFrame()
+            return empty_frame("equity")
 
         data = response.json()
 
@@ -59,7 +60,7 @@ def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.Dat
 
         if not records:
             print(f"[BSE] No records found for scripcode {scripcode}")
-            return pd.DataFrame()
+            return empty_frame("equity")
 
         df = pd.DataFrame(records)
 
@@ -113,7 +114,7 @@ def fetch_bse_historical(scripcode: str, from_date: str, to_date: str) -> pd.Dat
 
     except Exception as e:
         print(f"[BSE] Exception for {scripcode}: {e}")
-        return pd.DataFrame()
+        return empty_frame("equity")
 
 def fetch_bse_historical_by_symbol(symbol: str, from_date: str, to_date: str) -> pd.DataFrame:
     """

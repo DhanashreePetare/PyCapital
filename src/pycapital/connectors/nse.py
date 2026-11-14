@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import time
 from datetime import datetime, timedelta
+from pycapital.schema import empty_frame
 
 
 def _fetch_nse_chunk(session: requests.Session, symbol: str, from_date: str, to_date: str) -> pd.DataFrame:
@@ -22,15 +23,15 @@ def _fetch_nse_chunk(session: requests.Session, symbol: str, from_date: str, to_
         response = session.get(url, timeout=15)
 
         if response.status_code != 200:
-            return pd.DataFrame()
+            return empty_frame("equity")
 
         text = response.text.strip()
         if not text or text == "null" or text == "[]":
-            return pd.DataFrame()
+            return empty_frame("equity")
 
         data = json.loads(text)
         if not data:
-            return pd.DataFrame()
+            return empty_frame("equity")
 
         df = pd.DataFrame(data)
 
@@ -58,7 +59,7 @@ def _fetch_nse_chunk(session: requests.Session, symbol: str, from_date: str, to_
 
     except Exception as e:
         print(f"[NSE] Chunk fetch error: {e}")
-        return pd.DataFrame()
+        return empty_frame("equity")
 
 
 def _create_nse_session(symbol: str) -> requests.Session:
@@ -105,11 +106,11 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str) -> pd.DataFr
         end   = datetime.strptime(to_date,   "%Y-%m-%d")
     except ValueError:
         print(f"[NSE] Invalid date format. Use YYYY-MM-DD")
-        return pd.DataFrame()
+        return empty_frame("equity")
 
     if start > end:
         print(f"[NSE] from_date cannot be after to_date")
-        return pd.DataFrame()
+        return empty_frame("equity")
 
     # Create session once — reuse for all chunks
     print(f"[NSE] Fetching {symbol} from {from_date} to {to_date}...")
@@ -144,7 +145,7 @@ def fetch_nse_historical(symbol: str, from_date: str, to_date: str) -> pd.DataFr
 
     if not all_chunks:
         print(f"[NSE] No data returned for {symbol}")
-        return pd.DataFrame()
+        return empty_frame("equity")
 
     # Combine all chunks
     df = pd.concat(all_chunks, ignore_index=True)

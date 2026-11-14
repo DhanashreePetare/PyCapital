@@ -10,6 +10,7 @@ import pandas as pd
 import time
 from datetime import datetime, timedelta
 from pycapital.connectors._session_utils import create_nse_session
+from pycapital.schema import empty_frame
 
 
 def _fetch_fno_chunk(session, symbol, from_date, to_date, expiry_date, instrument_type):
@@ -45,7 +46,7 @@ def _fetch_fno_chunk(session, symbol, from_date, to_date, expiry_date, instrumen
         data = payload.get("data", []) if isinstance(payload, dict) else payload
 
         if not data:
-            return pd.DataFrame(columns=columns)
+            return empty_frame("fno")
 
         df = pd.DataFrame(data)
 
@@ -84,7 +85,7 @@ def _fetch_fno_chunk(session, symbol, from_date, to_date, expiry_date, instrumen
 
     except Exception as e:
         print(f"[FNO] Chunk fetch error: {e}")
-        return pd.DataFrame(columns=columns)
+        return empty_frame("fno")
 
 
 def fetch_fno_data(symbol, from_date, to_date, expiry_date, instrument_type="FUTSTK"):
@@ -116,11 +117,11 @@ def fetch_fno_data(symbol, from_date, to_date, expiry_date, instrument_type="FUT
         end   = datetime.strptime(to_date,   "%Y-%m-%d")
     except ValueError:
         print(f"[FNO] Invalid date format. Use YYYY-MM-DD")
-        return pd.DataFrame()
+        return empty_frame("fno")
 
     if start > end:
         print(f"[FNO] from_date cannot be after to_date")
-        return pd.DataFrame()
+        return empty_frame("fno")
 
     print(f"[FNO] Fetching {symbol} ({instrument_type}) from {from_date} to {to_date}...")
     session = create_nse_session()
@@ -147,7 +148,7 @@ def fetch_fno_data(symbol, from_date, to_date, expiry_date, instrument_type="FUT
 
     if not all_chunks:
         print(f"[FNO] No data returned for {symbol}")
-        return pd.DataFrame()
+        return empty_frame("fno")
 
     df = pd.concat(all_chunks, ignore_index=True)
     df = df.drop_duplicates(subset=["date", "expiry_date", "option_type", "strike_price"])

@@ -29,6 +29,7 @@ is found.
 import pandas as pd
 from datetime import datetime
 from pycapital.connectors._session_utils import create_nse_session
+from pycapital.schema import empty_frame
 
 
 def fetch_bulk_deals(from_date, to_date):
@@ -72,7 +73,7 @@ def fetch_bulk_deals(from_date, to_date):
 
         if not data:
             print(f"[SEBI] No bulk deals found for {from_date} to {to_date}")
-            return pd.DataFrame(columns=columns)
+            return empty_frame("bulk_deals")
 
         df = pd.DataFrame(data)
 
@@ -104,4 +105,4 @@ def fetch_bulk_deals(from_date, to_date):
 
     except Exception as e:
         print(f"[SEBI] Exception fetching bulk deals: {e}")
-        return pd.DataFrame(columns=columns)
+        return empty_frame("bulk_deals")
