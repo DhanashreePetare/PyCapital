@@ -1,5 +1,5 @@
 """
-SEBI-mandated Bulk Deals connector for PyCapital.
+SEBI-mandated Bulk Deals connector for PyEquity.
 
 SEBI mandates same-day public disclosure of Bulk Deals; NSE hosts the
 actual data. This connector uses NSE's official historical Bulk Deals
@@ -29,8 +29,8 @@ is found.
 import pandas as pd
 import logging
 from datetime import datetime
-from pycapital.connectors._session_utils import create_nse_session
-from pycapital.schema import empty_frame
+from pyequity.connectors._session_utils import create_nse_session
+from pyequity.schema import empty_frame
 
 logger = logging.getLogger(__name__)
 def fetch_bulk_deals(from_date, to_date):

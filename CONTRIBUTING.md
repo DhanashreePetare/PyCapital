@@ -1,6 +1,6 @@
-# Contributing to PyCapital
+# Contributing to PyEquity
 
-PyCapital is a Python library that gives unified, validated access to Indian market data (NSE, BSE, AMFI, SEBI). Everyone follows these rules, so every pull request looks the same and review stays quick.
+PyEquity is a Python library that gives unified, validated access to Indian market data (NSE, BSE, AMFI, SEBI). Everyone follows these rules, so every pull request looks the same and review stays quick.
 
 ## Git rules
 
@@ -22,12 +22,12 @@ Each file has one owner, to avoid merge conflicts. If you need a change in someo
 
 ## Connector standard
 
-Every connector in `src/pycapital/connectors/` follows these rules:
+Every connector in `src/pyequity/connectors/` follows these rules:
 
 - Dates passed in are always `YYYY-MM-DD`. Convert to the exchange's own format inside the connector.
 - No `print`. Use `logger = logging.getLogger(__name__)`. The library is silent unless the user enables logging.
 - No test or demo code inside connector files. Tests live in `tests/`, demos in `demo/`.
-- A connector never raises on a normal failure (network error, bad symbol, empty result). It logs the problem and returns `empty_frame("<dataset>")` from `pycapital.schema`.
+- A connector never raises on a normal failure (network error, bad symbol, empty result). It logs the problem and returns `empty_frame("<dataset>")` from `pyequity.schema`.
 - Output columns and dtypes come from `schema.py`, the single source of truth.
 - Long date ranges are chunked so exchange row caps never silently truncate data.
 - Every public function has a docstring with `Args` and `Returns`.

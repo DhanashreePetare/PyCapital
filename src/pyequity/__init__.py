@@ -1,4 +1,4 @@
-"""PyCapital: unified Python access to Indian market data."""
+"""PyEquity: unified Python access to Indian market data."""
 import logging
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())

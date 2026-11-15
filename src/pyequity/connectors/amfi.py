@@ -1,5 +1,5 @@
 """
-AMFI Mutual Fund NAV connector for PyCapital.
+AMFI Mutual Fund NAV connector for PyEquity.
 
 Data source: https://api.mfapi.in (community-maintained, sourced from
 official AMFI NAV disclosures). No API key, no session/auth needed —
@@ -16,7 +16,7 @@ import requests
 import pandas as pd
 import logging
 from datetime import datetime
-from pycapital.schema import empty_frame
+from pyequity.schema import empty_frame
 
 BASE_URL = "https://api.mfapi.in/mf"
 

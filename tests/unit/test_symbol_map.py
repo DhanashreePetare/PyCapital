@@ -1,5 +1,5 @@
 import pytest
-from pycapital.connectors.symbol_map import get_bse_code
+from pyequity.connectors.symbol_map import get_bse_code
 
 
 def test_known_symbol_returns_bse_code():

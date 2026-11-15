@@ -1,5 +1,5 @@
 """
-Shared symbol reference data for PyCapital.
+Shared symbol reference data for PyEquity.
 
 Purpose:
     Maps a standard NSE stock symbol (e.g. "RELIANCE") to the

@@ -1,5 +1,5 @@
 """
-NSE Derivatives (F&O) historical data connector for PyCapital.
+NSE Derivatives (F&O) historical data connector for PyEquity.
 
 Endpoint and real field names confirmed via DevTools + discovery run
 on 2026-09-25. Handles NSE's ~70-row-per-request cap via chunking,
@@ -10,8 +10,8 @@ import pandas as pd
 import time
 import logging
 from datetime import datetime, timedelta
-from pycapital.connectors._session_utils import create_nse_session
-from pycapital.schema import empty_frame
+from pyequity.connectors._session_utils import create_nse_session
+from pyequity.schema import empty_frame
 
 logger = logging.getLogger(__name__)
 

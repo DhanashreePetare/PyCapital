@@ -1,1 +1,1 @@
-PyCapital
+PyEquity
