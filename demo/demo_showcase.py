@@ -1,5 +1,5 @@
 """
-PyCapital — Live Demonstration Script
+PyEquity — Live Demonstration Script
 
 Purpose: Prove to a reviewer/guide that every implemented data source
 connector fetches REAL, correctly-structured, verifiably-accurate data
@@ -19,12 +19,12 @@ Run with:
 import sys
 import os
 
-from pycapital.connectors.nse import fetch_nse_historical
-from pycapital.connectors.bse import fetch_bse_historical
-from pycapital.connectors.corporate import fetch_corporate_actions
-from pycapital.connectors.indices import fetch_index_history
-from pycapital.connectors.fno import fetch_fno_data
-from pycapital.connectors.amfi import fetch_nav
+from pyequity.connectors.nse import fetch_nse_historical
+from pyequity.connectors.bse import fetch_bse_historical
+from pyequity.connectors.corporate import fetch_corporate_actions
+from pyequity.connectors.indices import fetch_index_history
+from pyequity.connectors.fno import fetch_fno_data
+from pyequity.connectors.amfi import fetch_nav
 
 
 def section(title):
@@ -54,7 +54,7 @@ def show_df(df, max_rows=8):
 
 print("\n")
 print("=" * 70)
-print("   PyCapital — LIVE DATA SOURCE DEMONSTRATION")
+print("   PyEquity — LIVE DATA SOURCE DEMONSTRATION")
 print("   Proving feasibility: NSE, BSE, Corporate Actions,")
 print("   Indices, F&O, and AMFI Mutual Fund connectors")
 print("=" * 70)
@@ -94,7 +94,7 @@ show_df(df_old)
 # ============================================================
 section("DEMO 3 — Automatic Pagination (1 full year of daily data)")
 
-print("\nNSE's raw API caps a single request at ~70 rows. PyCapital's NSE")
+print("\nNSE's raw API caps a single request at ~70 rows. PyEquity's NSE")
 print("connector automatically chunks and stitches requests to deliver")
 print("a complete, gapless dataset for any requested range.")
 df_1y = fetch_nse_historical("RELIANCE", "2025-09-26", "2026-09-26")
@@ -225,7 +225,7 @@ show_df(df_fno[["date", "open", "high", "low", "close", "volume", "open_interest
 section("DEMO 10 — AMFI Mutual Fund NAV History")
 
 print("\nFetching NAV history for a mutual fund scheme from AMFI's")
-print("official public NAV disclosure system — proving PyCapital covers")
+print("official public NAV disclosure system — proving PyEquity covers")
 print("more than just equities.\n")
 
 df_amfi = fetch_nav(119551)

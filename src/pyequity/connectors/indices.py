@@ -2,8 +2,8 @@ import pandas as pd
 import time
 import logging
 from datetime import datetime, timedelta
-from pycapital.connectors._session_utils import create_nse_session
-from pycapital.schema import empty_frame
+from pyequity.connectors._session_utils import create_nse_session
+from pyequity.schema import empty_frame
 
 logger = logging.getLogger(__name__) 
 

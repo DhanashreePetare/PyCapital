@@ -2,13 +2,13 @@ import sys
 import os
 import logging
 from datetime import datetime
-from pycapital.connectors.nse import fetch_nse_historical
-from pycapital.connectors.bse import fetch_bse_historical
-from pycapital.connectors.corporate import fetch_corporate_actions
-from pycapital.connectors.fno import fetch_fno_data
-from pycapital.connectors.indices import fetch_index_history
-from pycapital.connectors.sebi import fetch_bulk_deals
-from pycapital.connectors.amfi import fetch_nav
+from pyequity.connectors.nse import fetch_nse_historical
+from pyequity.connectors.bse import fetch_bse_historical
+from pyequity.connectors.corporate import fetch_corporate_actions
+from pyequity.connectors.fno import fetch_fno_data
+from pyequity.connectors.indices import fetch_index_history
+from pyequity.connectors.sebi import fetch_bulk_deals
+from pyequity.connectors.amfi import fetch_nav
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 

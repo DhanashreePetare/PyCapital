@@ -1,4 +1,4 @@
-from pycapital.schema import SCHEMAS, empty_frame
+from pyequity.schema import SCHEMAS, empty_frame
 
 def test_empty_frames_have_standard_columns():
     for name, cols in SCHEMAS.items():

@@ -1,4 +1,4 @@
-"""Standard column schemas for every PyCapital dataset."""
+"""Standard column schemas for every PyEquity dataset."""
 import pandas as pd
 
 SCHEMAS = {

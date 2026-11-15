@@ -4,8 +4,8 @@ import json
 import time
 import logging
 from datetime import datetime, timedelta
-from pycapital.connectors.symbol_map import get_bse_code
-from pycapital.schema import empty_frame
+from pyequity.connectors.symbol_map import get_bse_code
+from pyequity.schema import empty_frame
 
 logger = logging.getLogger(__name__)
 
