@@ -5,3 +5,4 @@ __pycache__/
 .venv/
 data/
 tests/live/temp.py
+generated_map.txt
