@@ -20,7 +20,7 @@ def create_nse_session(symbol=None):
         ),
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br" if symbol else "gzip, deflate",
+        "Accept-Encoding": "gzip, deflate",
         "Referer": (
             f"https://www.nseindia.com/get-quote/equity/{symbol}"
             if symbol else "https://www.nseindia.com"
