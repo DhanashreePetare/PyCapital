@@ -1,0 +1,127 @@
+{
+  "captured_on": "2026-11-16",
+  "generated_by": "tools/capture_fixtures.py",
+  "note": "Raw response bodies exactly as received, except where truncated_to_entries is set. Do not edit by hand; re-run the tool.",
+  "fixtures": {
+    "nse_equity_reliance": {
+      "file": "nse_equity_reliance.json",
+      "connector_call": "_fetch_nse_chunk(session, 'RELIANCE', '15-09-2026', '23-09-2026', 'EQ')",
+      "source_url": "https://www.nseindia.in/api/NextApi/apiClient/GetQuoteApi?functionName=getHistoricalTradeData&symbol=RELIANCE&series=EQ&fromDate=15-09-2026&toDate=23-09-2026",
+      "http_status": 200,
+      "content_type": "application/json",
+      "bytes": 2558,
+      "expect_empty": false,
+      "live_rows": 7,
+      "original_data_entries": null,
+      "truncated_to_entries": null
+    },
+    "nse_equity_invalid_symbol": {
+      "file": "nse_equity_invalid_symbol.json",
+      "connector_call": "_fetch_nse_chunk(session, 'WRONGSYMBOL123', ...) (session warmed for RELIANCE)",
+      "source_url": "https://www.nseindia.in/api/NextApi/apiClient/GetQuoteApi?functionName=getHistoricalTradeData&symbol=WRONGSYMBOL123&series=EQ&fromDate=15-09-2026&toDate=23-09-2026",
+      "http_status": 200,
+      "content_type": "application/json",
+      "bytes": 2,
+      "expect_empty": true,
+      "live_rows": 0,
+      "original_data_entries": null,
+      "truncated_to_entries": null
+    },
+    "bse_reliance": {
+      "file": "bse_reliance.json",
+      "connector_call": "_fetch_bse_chunk('500325', '2026-09-15', '2026-09-23')",
+      "source_url": "https://api.bseindia.com/BseIndiaAPI/api/StockpricesearchData/w?MonthDate=15/09/2026&YearDate=23/09/2026&pageType=0&Scode=500325&Seg=C&rbType=D&SortOrder=true",
+      "http_status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "bytes": 3345,
+      "expect_empty": false,
+      "live_rows": 7,
+      "original_data_entries": null,
+      "truncated_to_entries": null
+    },
+    "bse_invalid_scripcode": {
+      "file": "bse_invalid_scripcode.json",
+      "connector_call": "_fetch_bse_chunk('999999', '2026-09-15', '2026-09-23')",
+      "source_url": "https://api.bseindia.com/BseIndiaAPI/api/StockpricesearchData/w?MonthDate=15/09/2026&YearDate=23/09/2026&pageType=0&Scode=999999&Seg=C&rbType=D&SortOrder=true",
+      "http_status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "bytes": 278,
+      "expect_empty": true,
+      "live_rows": 0,
+      "original_data_entries": null,
+      "truncated_to_entries": null
+    },
+    "indices_nifty50": {
+      "file": "indices_nifty50.json",
+      "connector_call": "_fetch_indices_chunk(session, 'NIFTY 50', '15-09-2026', '23-09-2026')",
+      "source_url": "https://www.nseindia.in/api/historicalOR/indicesHistory?indexType=NIFTY+50&from=15-09-2026&to=23-09-2026",
+      "http_status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "bytes": 1906,
+      "expect_empty": false,
+      "live_rows": 7,
+      "original_data_entries": null,
+      "truncated_to_entries": null
+    },
+    "fno_reliance_futstk": {
+      "file": "fno_reliance_futstk.json",
+      "connector_call": "_fetch_fno_chunk(session, 'RELIANCE', '15-09-2026', '23-09-2026', '27-Oct-2026', 'FUTSTK')",
+      "source_url": "https://www.nseindia.in/api/NextApi/apiClient/GetQuoteApi?functionName=getDerivativesHistoricalData&symbol=RELIANCE&instrumentType=FUTSTK&year=&expiryDate=27-Oct-2026&strikePrice=&optionType=&fromDate=15-09-2026&toDate=23-09-2026",
+      "http_status": 200,
+      "content_type": "application/json",
+      "bytes": 4157,
+      "expect_empty": false,
+      "live_rows": 7,
+      "original_data_entries": null,
+      "truncated_to_entries": null
+    },
+    "corporate_actions_reliance": {
+      "file": "corporate_actions_reliance.json",
+      "connector_call": "fetch_corporate_actions('RELIANCE')",
+      "source_url": "https://www.nseindia.in/api/corporates-corporateActions?index=equities&symbol=RELIANCE",
+      "http_status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "bytes": 6072,
+      "expect_empty": false,
+      "live_rows": 20,
+      "original_data_entries": null,
+      "truncated_to_entries": null
+    },
+    "sebi_bulk_deals_2026-09-21": {
+      "file": "sebi_bulk_deals_2026-09-21.json",
+      "connector_call": "fetch_bulk_deals('2026-09-21', '2026-09-21')",
+      "source_url": "https://www.nseindia.in/api/historicalOR/bulk-block-short-deals?optionType=bulk_deals&from=21-09-2026&to=21-09-2026",
+      "http_status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "bytes": 17942,
+      "expect_empty": false,
+      "live_rows": 70,
+      "original_data_entries": null,
+      "truncated_to_entries": null
+    },
+    "amfi_nav_119551": {
+      "file": "amfi_nav_119551.json",
+      "connector_call": "fetch_nav(119551)",
+      "source_url": "https://api.mfapi.in/mf/119551",
+      "http_status": 200,
+      "content_type": "application/json",
+      "bytes": 1722,
+      "expect_empty": false,
+      "live_rows": 3349,
+      "original_data_entries": 3349,
+      "truncated_to_entries": 30
+    },
+    "amfi_invalid_scheme": {
+      "file": "amfi_invalid_scheme.json",
+      "connector_call": "fetch_nav(999999999)",
+      "source_url": "https://api.mfapi.in/mf/999999999",
+      "http_status": 200,
+      "content_type": "application/json",
+      "bytes": 174,
+      "expect_empty": true,
+      "live_rows": 0,
+      "original_data_entries": null,
+      "truncated_to_entries": null
+    }
+  }
+}
