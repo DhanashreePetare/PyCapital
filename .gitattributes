@@ -1,0 +1,4 @@
+# Raw API responses must stay byte-for-byte as captured (no CRLF conversion),
+# otherwise the manifest size check in tests/unit/test_connectors_offline.py
+# fails on Windows checkouts.
+tests/fixtures/* -text
