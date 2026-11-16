@@ -6,3 +6,4 @@ __pycache__/
 data/
 tests/live/temp.py
 generated_map.txt
+microbugs.txt
