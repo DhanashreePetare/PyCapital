@@ -34,6 +34,15 @@ reported by ``validate()`` as errors.
 
 Row order: sorting is by date only and is stable, so rows that share a date
 keep the order they arrived in.
+
+String dates must be ISO
+------------------------
+Connectors always hand over real datetimes, so this only matters for frames
+built by hand. A date column that holds *strings* is parsed with
+``pandas.to_datetime``, which reads ``01-09-2026`` as 9 January, not
+1 September, and in a column that mixes such strings turns the ones it
+cannot read that way (e.g. ``13-09-2026``) into NaT. Pass ISO strings
+(``YYYY-MM-DD``) or datetime values. The same applies to ``validate()``.
 """
 from __future__ import annotations
 
@@ -262,7 +271,8 @@ def normalize(df: pd.DataFrame, dataset: str, *,
     never filled.
 
     Args:
-        df:      DataFrame produced by a connector.
+        df:      DataFrame produced by a connector. Date columns given as
+                 strings must be ISO (``YYYY-MM-DD``); see the module docstring.
         dataset: Dataset name in ``pyequity.schema.SCHEMAS``.
         source:  Optional source tag. Used only to fill a missing ``source``
                  column or null ``source`` values; existing values are never
