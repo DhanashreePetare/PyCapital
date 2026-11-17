@@ -49,7 +49,15 @@ def make(dataset: str) -> pd.DataFrame:
             "ex_date": d, "symbol": "RELIANCE",
             "action_type": ["DIVIDEND", "BONUS", "SPLIT"],
             "action_detail": ["Dividend - Rs 5", "Bonus 1:1", "Split Rs 10 to Rs 5"],
-            "record_date": d, "source": "NSE"})
+            "record_date": d, "source": "NSE",
+            "isin": "INE002A01018",
+            "action_categories": ["DIVIDEND", "BONUS", "SPLIT"],
+            "bonus_new": [float("nan"), 1.0, float("nan")],
+            "bonus_held": [float("nan"), 1.0, float("nan")],
+            "split_old_fv": [float("nan"), float("nan"), 10.0],
+            "split_new_fv": [float("nan"), float("nan"), 5.0],
+            "rights_new": float("nan"), "rights_held": float("nan"),
+            "rights_premium": float("nan"), "parse_status": "ok"})
     elif dataset == "nav":
         raw = pd.DataFrame({
             "date": d, "scheme_code": 119551, "scheme_name": "Some Fund",
