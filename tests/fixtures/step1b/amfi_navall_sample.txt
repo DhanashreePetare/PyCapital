@@ -1,0 +1,8 @@
+Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Plan;Option;Net Asset Value;Date
+Open Ended Schemes(Children’s Fund - Childrens' Fund)
+Axis Mutual Fund
+135762;INF846K01WO1;-;Axis Children's Fund;Direct Plan;Growth Option;31.1190;16-Nov-2026
+135765;INF846K01WP8;-;Axis Children's Fund;Direct Plan;IDCW Option;28.6662;16-Nov-2026
+135759;INF846K01WJ1;-;Axis Children's Fund;Regular Plan;Growth Option;27.0588;16-Nov-2026
+Open Ended Schemes(Debt Scheme - Banking and PSU Fund)
+119551;INF209KA12Z1;INF209KA13Z9;Aditya Birla Sun Life Banking & PSU Debt Fund;Direct Plan;IDCW-Re-investment;107.2964;16-Nov-2026
