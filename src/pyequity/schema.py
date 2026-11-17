@@ -16,7 +16,14 @@ SCHEMAS = {
             "change_in_oi": "int64", "underlying_value": "float64", "source": "object"},
     "corporate_actions": {"ex_date": "datetime64[ns]", "symbol": "object",
                           "action_type": "object", "action_detail": "object",
-                          "record_date": "datetime64[ns]", "source": "object"},
+                          "record_date": "datetime64[ns]", "source": "object",
+                          # Added after the first release; appended so the
+                          # original columns keep their names and order.
+                          "isin": "object", "action_categories": "object",
+                          "bonus_new": "float64", "bonus_held": "float64",
+                          "split_old_fv": "float64", "split_new_fv": "float64",
+                          "rights_new": "float64", "rights_held": "float64",
+                          "rights_premium": "float64", "parse_status": "object"},
     "nav": {"date": "datetime64[ns]", "scheme_code": "int64",
             "scheme_name": "object", "nav": "float64", "source": "object"},
     "bulk_deals": {"date": "datetime64[ns]", "symbol": "object", "scrip_name": "object",
