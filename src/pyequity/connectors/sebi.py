@@ -48,7 +48,7 @@ import pandas as pd
 import requests
 
 from pyequity.connectors._session_utils import create_nse_session
-from pyequity.schema import empty_frame
+from pyequity.schema import SCHEMAS, empty_frame
 
 logger = logging.getLogger(__name__)
 
@@ -114,10 +114,12 @@ def _records_to_frame(data: list) -> pd.DataFrame:
     df = df[_COLUMNS].copy()
 
     df["date"] = pd.to_datetime(df["date"], format="%d-%b-%Y", errors="coerce")
+    df["date"] = df["date"].astype("datetime64[ns]")
     df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").fillna(0).astype("int64")
     df["price"] = pd.to_numeric(df["price"], errors="coerce").astype("float64")
 
-    return df.sort_values("date").reset_index(drop=True)
+    df = df.sort_values("date").reset_index(drop=True)
+    return df.astype(SCHEMAS["bulk_deals"])
 
 
 def fetch_bulk_deals(from_date, to_date):
@@ -311,6 +313,7 @@ def _parse_bulk_csv(text: str) -> Optional[pd.DataFrame]:
     })
 
     raw["date"] = pd.to_datetime(raw["date"], format="%d-%b-%Y", errors="coerce")
+    raw["date"] = raw["date"].astype("datetime64[ns]")
     raw["quantity"] = pd.to_numeric(raw["quantity"], errors="coerce")
     raw["price"] = pd.to_numeric(raw["price"], errors="coerce")
 
@@ -325,7 +328,8 @@ def _parse_bulk_csv(text: str) -> Optional[pd.DataFrame]:
     raw["price"] = raw["price"].astype("float64")
     raw["source"] = _CSV_SOURCE
     raw = raw[_COLUMNS]
-    return raw.sort_values("date", kind="stable").reset_index(drop=True)
+    raw = raw.sort_values("date", kind="stable").reset_index(drop=True)
+    return raw.astype(SCHEMAS["bulk_deals"])
 
 
 def fetch_latest_bulk_deals() -> pd.DataFrame:

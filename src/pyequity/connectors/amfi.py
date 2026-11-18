@@ -35,7 +35,7 @@ from typing import List, Optional, Tuple
 import pandas as pd
 import requests
 
-from pyequity.schema import empty_frame
+from pyequity.schema import SCHEMAS, empty_frame
 
 BASE_URL = "https://api.mfapi.in/mf"
 
@@ -114,6 +114,7 @@ def fetch_nav(scheme_code, from_date=None, to_date=None) -> pd.DataFrame:
 
         df = pd.DataFrame(payload["data"])
         df["date"] = pd.to_datetime(df["date"], format="%d-%m-%Y", errors="coerce")
+        df["date"] = df["date"].astype("datetime64[ns]")
         df["nav"] = pd.to_numeric(df["nav"], errors="coerce")
 
         unreadable = df["date"].isna() | df["nav"].isna()
@@ -141,7 +142,7 @@ def fetch_nav(scheme_code, from_date=None, to_date=None) -> pd.DataFrame:
 
         df = df.sort_values("date").reset_index(drop=True)
 
-        return df
+        return df.astype(SCHEMAS["nav"])
 
     except Exception as e:
         logger.error(f"[AMFI] Exception for scheme {scheme_code}: {e}")
@@ -207,6 +208,7 @@ def _parse_official_history(text: str, scheme_code: int) -> Optional[Tuple[pd.Da
         "date": pd.to_datetime([r[i_date] for r in mine], format="%d-%b-%Y", errors="coerce"),
         "nav": pd.to_numeric([r[i_nav] for r in mine], errors="coerce"),
     })
+    df["date"] = df["date"].astype("datetime64[ns]")
     unreadable = df["date"].isna() | df["nav"].isna()
     bad = int(unreadable.sum())
     df = df[~unreadable].copy()
@@ -361,8 +363,7 @@ def fetch_nav_official(scheme_code, from_date: str, to_date: str) -> pd.DataFram
         df["scheme_name"] = name
         df["source"] = _OFFICIAL_SOURCE
         df = df[["date", "scheme_code", "scheme_name", "nav", "source"]]
-        df["scheme_code"] = df["scheme_code"].astype("int64")
-        return df
+        return df.astype(SCHEMAS["nav"])
 
     except Exception as e:
         logger.error(f"[AMFI] Exception for official NAV of scheme {scheme_code}: {e}")
