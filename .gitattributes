@@ -2,3 +2,4 @@
 # otherwise the manifest size check in tests/unit/test_connectors_offline.py
 # fails on Windows checkouts.
 tests/fixtures/* -text
+tests/fixtures/step1b/* -text

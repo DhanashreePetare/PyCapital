@@ -9,6 +9,7 @@ from pyequity.connectors.fno import fetch_fno_data
 from pyequity.connectors.indices import fetch_index_history
 from pyequity.connectors.sebi import fetch_bulk_deals
 from pyequity.connectors.amfi import fetch_nav
+from pyequity.processing.normalize import validate
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -18,50 +19,28 @@ def print_header(title):
     print("=" * 60)
 
 
+def _library_check(df, dataset, label):
+    """Run the library's validate() and print what it finds.
+
+    Errors print with a red cross, warnings with a warning sign. Returns True
+    when validate() reports no errors. Warnings do not fail a check, as in
+    the validators this replaces.
+    """
+    report = validate(df, dataset)
+    for issue in report.errors:
+        print(f"  ❌ {label} — {issue.message}")
+    for issue in report.warnings:
+        print(f"  ⚠️  {issue.message}")
+    return report.ok
+
+
 def validate_df(df, source, symbol):
-    """Validates an OHLCV DataFrame (equity-style: nse.py / bse.py) has correct structure and types."""
+    """Validates an OHLCV DataFrame (equity-style: nse.py / bse.py) using pyequity's validate()."""
     if df.empty:
         print(f"  ❌ {source} {symbol} — Empty DataFrame")
         return False
 
-    required_cols = ["date", "open", "high", "low", "close", "volume", "trades", "symbol", "source"]
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        print(f"  ❌ {source} {symbol} — Missing columns: {missing}")
-        return False
-
-    errors = []
-    if str(df["date"].dtype) != "datetime64[ns]":
-        errors.append(f"date should be datetime64[ns], got {df['date'].dtype}")
-    if str(df["open"].dtype) != "float64":
-        errors.append(f"open should be float64, got {df['open'].dtype}")
-    if str(df["volume"].dtype) != "int64":
-        errors.append(f"volume should be int64, got {df['volume'].dtype}")
-
-    if errors:
-        for e in errors:
-            print(f"  ❌ Type error: {e}")
-        return False
-
-    nulls = df[["date", "open", "high", "low", "close", "volume"]].isnull().sum()
-    if nulls.any():
-        print(f"  ⚠️  Null values found: {nulls[nulls > 0].to_dict()}")
-
-    invalid = df[df["high"] < df["low"]]
-    if not invalid.empty:
-        print(f"  ❌ {len(invalid)} rows where high < low — data corruption")
-        return False
-
-    invalid2 = df[(df["close"] < df["low"]) | (df["close"] > df["high"])]
-    if not invalid2.empty:
-        print(f"  ⚠️  {len(invalid2)} rows where close is outside high-low range")
-
-    if not df["date"].is_monotonic_increasing:
-        print(f"  ⚠️  Dates are not sorted in ascending order")
-
-    dupes = df["date"].duplicated().sum()
-    if dupes > 0:
-        print(f"  ❌ {dupes} duplicate dates found")
+    if not _library_check(df, "equity", f"{source} {symbol}"):
         return False
 
     print(f"  ✅ {source} {symbol} — {len(df)} rows — {df['date'].min().date()} to {df['date'].max().date()}")
@@ -71,21 +50,15 @@ def validate_df(df, source, symbol):
 
 
 def validate_corporate_df(df, symbol):
-    """Validates a corporate actions DataFrame structure and types."""
+    """Validates a corporate actions DataFrame: library validate() plus two connector-specific checks."""
     if df.empty:
         print(f"  ⚠️  Corporate {symbol} — Empty DataFrame (may genuinely have no recent actions)")
         return False
 
-    required_cols = ["ex_date", "symbol", "action_type", "action_detail", "record_date", "source"]
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        print(f"  ❌ Corporate {symbol} — Missing columns: {missing}")
+    if not _library_check(df, "corporate_actions", f"Corporate {symbol}"):
         return False
 
-    if str(df["ex_date"].dtype) != "datetime64[ns]":
-        print(f"  ❌ Corporate {symbol} — ex_date should be datetime64[ns], got {df['ex_date'].dtype}")
-        return False
-
+    # Connector-specific checks that validate() does not make
     if (df["symbol"] != symbol.upper()).any():
         print(f"  ❌ Corporate {symbol} — symbol column has values other than the requested symbol")
         return False
@@ -102,38 +75,12 @@ def validate_corporate_df(df, symbol):
 
 
 def validate_fno_df(df, symbol):
-    """Validates an F&O DataFrame structure and types."""
+    """Validates an F&O DataFrame using pyequity's validate()."""
     if df.empty:
         print(f"  ❌ FNO {symbol} — Empty DataFrame")
         return False
 
-    required_cols = [
-        "date", "symbol", "expiry_date", "option_type", "strike_price",
-        "open", "high", "low", "close", "volume", "open_interest", "source"
-    ]
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        print(f"  ❌ FNO {symbol} — Missing columns: {missing}")
-        return False
-
-    errors = []
-    if str(df["date"].dtype) != "datetime64[ns]":
-        errors.append(f"date should be datetime64[ns], got {df['date'].dtype}")
-    if str(df["open"].dtype) != "float64":
-        errors.append(f"open should be float64, got {df['open'].dtype}")
-    if str(df["volume"].dtype) != "int64":
-        errors.append(f"volume should be int64, got {df['volume'].dtype}")
-    if str(df["open_interest"].dtype) != "int64":
-        errors.append(f"open_interest should be int64, got {df['open_interest'].dtype}")
-
-    if errors:
-        for e in errors:
-            print(f"  ❌ Type error: {e}")
-        return False
-
-    invalid = df[df["high"] < df["low"]]
-    if not invalid.empty:
-        print(f"  ❌ {len(invalid)} rows where high < low — data corruption")
+    if not _library_check(df, "fno", f"FNO {symbol}"):
         return False
 
     print(f"  ✅ FNO {symbol} — {len(df)} rows — {df['date'].min().date()} to {df['date'].max().date()}")
@@ -141,38 +88,12 @@ def validate_fno_df(df, symbol):
 
 
 def validate_indices_df(df, index_name):
-    """Validates an indices DataFrame structure and types."""
+    """Validates an indices DataFrame using pyequity's validate()."""
     if df.empty:
         print(f"  ❌ Indices {index_name} — Empty DataFrame")
         return False
 
-    required_cols = ["date", "index_name", "open", "high", "low", "close", "volume", "source"]
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        print(f"  ❌ Indices {index_name} — Missing columns: {missing}")
-        return False
-
-    errors = []
-    if str(df["date"].dtype) != "datetime64[ns]":
-        errors.append(f"date should be datetime64[ns], got {df['date'].dtype}")
-    if str(df["open"].dtype) != "float64":
-        errors.append(f"open should be float64, got {df['open'].dtype}")
-    if str(df["volume"].dtype) != "int64":
-        errors.append(f"volume should be int64, got {df['volume'].dtype}")
-
-    if errors:
-        for e in errors:
-            print(f"  ❌ Type error: {e}")
-        return False
-
-    invalid = df[df["high"] < df["low"]]
-    if not invalid.empty:
-        print(f"  ❌ {len(invalid)} rows where high < low — data corruption")
-        return False
-
-    dupes = df["date"].duplicated().sum()
-    if dupes > 0:
-        print(f"  ❌ {dupes} duplicate dates found")
+    if not _library_check(df, "index", f"Indices {index_name}"):
         return False
 
     print(f"  ✅ Indices {index_name} — {len(df)} rows — {df['date'].min().date()} to {df['date'].max().date()}")

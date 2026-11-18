@@ -1,0 +1,32 @@
+{
+  "captured_utc": "2026-11-17T10:12:58+00:00",
+  "files": {
+    "amfi_history_119551_2026-09-15_2026-09-23.txt": {
+      "url": "https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx",
+      "params": {
+        "frmdt": "15-Sep-2026",
+        "todt": "23-Sep-2026"
+      },
+      "status": 200,
+      "bytes": 3143,
+      "sha256": "f213d7582d1492da50b70ed4dce6b5465f1fe13bd3e27a17400bc65a29808f02",
+      "note": "SHRUNK from 8262245 bytes: header + 3 heading lines + data lines of schemes 119551 and ['139619', '139618', '139617']; kept lines unchanged"
+    },
+    "amfi_navall_sample.txt": {
+      "url": "https://www.amfiindia.com/spages/NAVAll.txt",
+      "params": null,
+      "status": 200,
+      "bytes": 641,
+      "sha256": "e60c7e51741b35bf12bb8dec7f9a1f596632089fb47860b5a5b312c48dc99d32",
+      "note": "SHRUNK from 1531137 bytes: header + 3 heading lines + data lines of schemes 119551 and ['135762', '135765', '135759']; kept lines unchanged"
+    },
+    "bulk_latest.csv": {
+      "url": "https://nsearchives.nseindia.com/content/equities/bulk.csv",
+      "params": null,
+      "status": 200,
+      "bytes": 12627,
+      "sha256": "a03b1238734715e0741dba4579ec6b89a8ff7dca0f66a1f125b2bf7cf4d2c171",
+      "note": "saved whole; 134 rows parsed"
+    }
+  }
+}

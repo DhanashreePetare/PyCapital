@@ -1,0 +1,32 @@
+Scheme Code;NAV Name;Plan;Option;ISIN Div Payout/ISIN Growth;ISIN Div Reinvestment;Net Asset Value;Date
+Open Ended Schemes ( Money Market )
+Taurus Mutual Fund
+139619;Taurus Investor Education Pool - Unclaimed Dividend - Growth;;;;;10.0000;15-Sep-2026
+139619;Taurus Investor Education Pool - Unclaimed Dividend - Growth;;;;;10.0000;16-Sep-2026
+139619;Taurus Investor Education Pool - Unclaimed Dividend - Growth;;;;;10.0000;17-Sep-2026
+139619;Taurus Investor Education Pool - Unclaimed Dividend - Growth;;;;;10.0000;18-Sep-2026
+139619;Taurus Investor Education Pool - Unclaimed Dividend - Growth;;;;;10.0000;21-Sep-2026
+139619;Taurus Investor Education Pool - Unclaimed Dividend - Growth;;;;;10.0000;22-Sep-2026
+139619;Taurus Investor Education Pool - Unclaimed Dividend - Growth;;;;;10.0000;23-Sep-2026
+139618;Taurus Investor Education Pool - Unclaimed Redemption - Growth;;Growth;;;10.0000;15-Sep-2026
+139618;Taurus Investor Education Pool - Unclaimed Redemption - Growth;;Growth;;;10.0000;16-Sep-2026
+139618;Taurus Investor Education Pool - Unclaimed Redemption - Growth;;Growth;;;10.0000;17-Sep-2026
+139618;Taurus Investor Education Pool - Unclaimed Redemption - Growth;;Growth;;;10.0000;18-Sep-2026
+139618;Taurus Investor Education Pool - Unclaimed Redemption - Growth;;Growth;;;10.0000;21-Sep-2026
+139618;Taurus Investor Education Pool - Unclaimed Redemption - Growth;;Growth;;;10.0000;22-Sep-2026
+139618;Taurus Investor Education Pool - Unclaimed Redemption - Growth;;Growth;;;10.0000;23-Sep-2026
+139617;Taurus Unclaimed Redemption - Growth;;Growth;;;17.7597;15-Sep-2026
+139617;Taurus Unclaimed Redemption - Growth;;Growth;;;17.7596;16-Sep-2026
+139617;Taurus Unclaimed Redemption - Growth;;Growth;;;17.7596;17-Sep-2026
+139617;Taurus Unclaimed Redemption - Growth;;Growth;;;17.7596;18-Sep-2026
+139617;Taurus Unclaimed Redemption - Growth;;Growth;;;17.7596;21-Sep-2026
+139617;Taurus Unclaimed Redemption - Growth;;Growth;;;17.7596;22-Sep-2026
+139617;Taurus Unclaimed Redemption - Growth;;Growth;;;17.7596;23-Sep-2026
+Open Ended Schemes ( Equity Scheme - Multi Cap Fund )
+119551;Aditya Birla Sun Life Banking & PSU Debt Fund  - DIRECT - IDCW;Direct Plan;IDCW-Re-investment;INF209KA12Z1;INF209KA13Z9;106.9321;15-Sep-2026
+119551;Aditya Birla Sun Life Banking & PSU Debt Fund  - DIRECT - IDCW;Direct Plan;IDCW-Re-investment;INF209KA12Z1;INF209KA13Z9;106.9851;16-Sep-2026
+119551;Aditya Birla Sun Life Banking & PSU Debt Fund  - DIRECT - IDCW;Direct Plan;IDCW-Re-investment;INF209KA12Z1;INF209KA13Z9;107.0008;17-Sep-2026
+119551;Aditya Birla Sun Life Banking & PSU Debt Fund  - DIRECT - IDCW;Direct Plan;IDCW-Re-investment;INF209KA12Z1;INF209KA13Z9;107.0677;18-Sep-2026
+119551;Aditya Birla Sun Life Banking & PSU Debt Fund  - DIRECT - IDCW;Direct Plan;IDCW-Re-investment;INF209KA12Z1;INF209KA13Z9;107.0952;21-Sep-2026
+119551;Aditya Birla Sun Life Banking & PSU Debt Fund  - DIRECT - IDCW;Direct Plan;IDCW-Re-investment;INF209KA12Z1;INF209KA13Z9;107.1010;22-Sep-2026
+119551;Aditya Birla Sun Life Banking & PSU Debt Fund  - DIRECT - IDCW;Direct Plan;IDCW-Re-investment;INF209KA12Z1;INF209KA13Z9;107.1386;23-Sep-2026
