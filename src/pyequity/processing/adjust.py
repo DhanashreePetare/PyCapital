@@ -435,8 +435,12 @@ def adjust_prices(prices: pd.DataFrame, actions: pd.DataFrame) -> pd.DataFrame:
         volume_f = pd.to_numeric(prices["volume"], errors="raise").astype("float64").to_numpy()
     except (TypeError, ValueError) as exc:
         return _fail(f"prices frame has non-numeric price or volume values ({exc})")
-    if not np.isfinite(volume_f).all() or (volume_f != np.floor(volume_f)).any():
-        return _fail("prices volume must be whole numbers without missing values")
+    if (
+        not np.isfinite(volume_f).all()
+        or (volume_f != np.floor(volume_f)).any()
+        or (volume_f < 0).any()
+    ):
+        return _fail("prices volume must be non-negative whole numbers without missing values")
     volume_in = prices["volume"].astype("int64").to_numpy()
     trades_in = None
     if "trades" in prices.columns:

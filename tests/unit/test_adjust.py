@@ -993,3 +993,14 @@ def test_source_has_no_print_and_no_old_project_name():
     assert not re.search(r"(?<![\w.])print\(", source)
     assert ("py" + "capital") not in source.lower()
     assert all(ord(ch) < 128 for ch in source)
+
+def test_negative_volume_fails_safe(caplog):
+    px = raw_prices("2024-10-21", "2024-11-01")
+    px["volume"] = -5
+
+    with caplog.at_level(logging.ERROR, logger=LOGGER):
+        out = adjust_prices(px, actions_df(bonus(1, 1)))
+
+    assert out.empty
+    assert list(out.columns) == list(SCHEMAS["equity"])
+    assert messages(caplog, logging.ERROR)
