@@ -11,8 +11,10 @@ Written against the contract agreed with C:
 * A row dated d is scaled by the product of the factors of all applied
   actions with ex_date > d. Open/high/low/close are multiplied, volume is
   divided and rounded, trades and rows on/after the ex-date are untouched.
-* Not applied (applied=False, reason set, warning logged): needs_review rows,
-  rights issues (v0.1), empty ex-dates, ex-dates after the last price date.
+* Not applied (applied=False, reason set, warning logged): needs_review 
+  rows and rights issues (v0.1). Rows with an empty ex-date cannot appear 
+  in the factor table. An ex-date after the last price date is reported by 
+  compute_factors, but adjust_prices leaves the prices untouched.
 * Dividends are ignored. Exact duplicate action rows count once.
 
 The four real cases use raw NSE prices saved by tools/capture_adjust_cases.py.
@@ -264,12 +266,15 @@ def test_action_without_an_ex_date_is_skipped_and_others_still_apply(caplog):
     assert adj.loc[5:, "close"].to_numpy() == pytest.approx(100.0)
 
 
-def test_action_after_the_last_price_date_is_not_applied():
+def test_action_after_the_last_price_date_changes_no_prices():
+    # compute_factors sees only actions, so it reports the factor the text
+    # means. Deciding that the ex-date lies after the last price row is
+    # adjust_prices' job: those prices must stay untouched.
     prices = synthetic_prices()
     ex = str((prices["date"].max() + pd.Timedelta(days=3)).date())
     actions = make_actions("TEST", [(ex, BONUS_11)])
     row = factor_row(adjust.compute_factors(actions), ex)
-    assert not row["applied"]
+    assert row["applied"] and row["factor"] == pytest.approx(0.5)
     assert_unchanged(prices, adjust.adjust_prices(prices, actions))
 
 
