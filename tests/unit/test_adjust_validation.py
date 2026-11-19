@@ -11,9 +11,9 @@ Written against the contract agreed with C:
 * A row dated d is scaled by the product of the factors of all applied
   actions with ex_date > d. Open/high/low/close are multiplied, volume is
   divided and rounded, trades and rows on/after the ex-date are untouched.
-* Not applied (applied=False, reason set, warning logged): needs_review 
-  rows and rights issues (v0.1). Rows with an empty ex-date cannot appear 
-  in the factor table. An ex-date after the last price date is reported by 
+* Not applied (applied=False, reason set, warning logged): needs_review
+  rows and rights issues (v0.1). Rows with an empty ex-date cannot appear
+  in the factor table. An ex-date after the last price date is reported by
   compute_factors, but adjust_prices leaves the prices untouched.
 * Dividends are ignored. Exact duplicate action rows count once.
 
