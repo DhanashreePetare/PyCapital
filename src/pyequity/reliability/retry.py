@@ -159,8 +159,10 @@ def retry_call(
             retry_after = _retry_after_seconds(exc)
             if retry_after is not None:
                 delay = min(max_delay, max(delay, retry_after))
-            delay *= 1 + jitter * (rng() * 2 - 1)
-            delay = max(0.0, delay)
+            delay = min(
+                max_delay,
+                max(0.0, delay * (1 + jitter * (rng() * 2 - 1))),
+            )
             logger.warning("[retry] %s attempt %d/%d failed (%s); retrying in %.1fs",
                            label, attempt, max_attempts, last_reason, delay)
             sleep(delay)

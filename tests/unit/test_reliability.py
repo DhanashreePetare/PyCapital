@@ -107,6 +107,22 @@ def test_jitter_stays_within_bounds():
                rng=lambda: 0.999999, sleep=clock.sleep)
     assert clock.sleeps == [pytest.approx(11.0, abs=1e-3)]
 
+def test_positive_jitter_does_not_exceed_max_delay():
+    clock = FakeClock()
+    op = script(requests.ConnectionError("temporary failure"), 1)
+
+    outcome = retry_call(
+        op,
+        base_delay=1.0,
+        max_delay=1.0,
+        jitter=0.1,
+        rng=lambda: 1.0,
+        sleep=clock.sleep,
+    )
+
+    assert outcome.ok
+    assert clock.sleeps == [pytest.approx(1.0)]
+
 
 def test_gives_up_after_max_attempts_and_reports_failed():
     op = script(requests.ConnectionError("down"))
