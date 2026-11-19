@@ -10,7 +10,10 @@ Two sources are available:
    (``NAVAll.txt`` for names, ``DownloadNAVHistoryReport_Po.aspx`` for
    history). Output ``source`` is ``"AMFI_OFFICIAL"`` so data from the two
    sources can always be told apart. It is NOT wired into ``fetch_nav`` as an
-   automatic fallback; that belongs to the reliability layer.
+   automatic fallback inside this module. ``fetch_nav_outcome`` reports
+   whether mfapi.in FAILED or genuinely returned nothing, so the public API
+   (``pyequity.api.mutual_funds``) can fall back to the official files only
+   when mfapi.in could not answer.
 
 Note: scheme_code -> scheme_name is NOT hardcoded anywhere in this file.
 scheme_name is always read live from the response itself, since AMFI scheme
@@ -29,12 +32,15 @@ Verified on real responses (November 2026, see docs/research):
 """
 
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 
 import pandas as pd
 import requests
 
+from pyequity.reliability.outcome import FetchOutcome, Status
+from pyequity.reliability.retry import retry_call
 from pyequity.schema import SCHEMAS, empty_frame
 
 BASE_URL = "https://api.mfapi.in/mf"
@@ -72,6 +78,59 @@ def list_schemes() -> pd.DataFrame:
         return pd.DataFrame(columns=["schemeCode", "schemeName"])
 
 
+def _nav_frame_from_payload(payload: dict, scheme_code, from_date: Optional[str],
+                            to_date: Optional[str]) -> pd.DataFrame:
+    """
+    Turn a mfapi.in payload that has a non-empty ``data`` list into the
+    standard nav frame (date filter applied, sorted oldest to newest).
+
+    Args:
+        payload     : Decoded mfapi.in JSON with ``meta`` and ``data``
+        scheme_code : AMFI scheme code
+        from_date   : Optional lower bound, YYYY-MM-DD
+        to_date     : Optional upper bound, YYYY-MM-DD
+
+    Returns:
+        DataFrame with columns date, scheme_code, scheme_name, nav, source.
+        Empty frame if every row was unreadable. May raise ValueError for a
+        malformed ``from_date``/``to_date``; callers validate dates first.
+    """
+    columns = ["date", "scheme_code", "scheme_name", "nav", "source"]
+    scheme_name = payload.get("meta", {}).get("scheme_name", "")
+
+    df = pd.DataFrame(payload["data"])
+    df["date"] = pd.to_datetime(df["date"], format="%d-%m-%Y", errors="coerce")
+    df["date"] = df["date"].astype("datetime64[ns]")
+    df["nav"] = pd.to_numeric(df["nav"], errors="coerce")
+
+    unreadable = df["date"].isna() | df["nav"].isna()
+    if unreadable.any():
+        logger.warning(
+            f"[AMFI] Dropped {int(unreadable.sum())} of {len(df)} rows with an "
+            f"unreadable date or NAV for scheme {scheme_code}"
+        )
+        df = df[~unreadable].copy()
+        if df.empty:
+            return empty_frame("nav")
+
+    df["nav"] = df["nav"].astype("float64")
+    df["scheme_code"] = int(scheme_code)
+    df["scheme_name"] = scheme_name
+    df["source"] = "AMFI"
+
+    df = df[columns]
+
+    # Convert standard YYYY-MM-DD input to filter against the data
+    if from_date:
+        df = df[df["date"] >= datetime.strptime(from_date, "%Y-%m-%d")]
+    if to_date:
+        df = df[df["date"] <= datetime.strptime(to_date, "%Y-%m-%d")]
+
+    df = df.sort_values("date").reset_index(drop=True)
+
+    return df.astype(SCHEMAS["nav"])
+
+
 def fetch_nav(scheme_code, from_date=None, to_date=None) -> pd.DataFrame:
     """
     Fetch NAV history for a single AMFI mutual fund scheme (mfapi.in).
@@ -94,8 +153,6 @@ def fetch_nav(scheme_code, from_date=None, to_date=None) -> pd.DataFrame:
         Sorted oldest to newest. Empty DataFrame on any failure,
         never raises, matching every other connector in this project.
     """
-    columns = ["date", "scheme_code", "scheme_name", "nav", "source"]
-
     try:
         url = f"{BASE_URL}/{scheme_code}"
         response = requests.get(url, timeout=15)
@@ -110,43 +167,60 @@ def fetch_nav(scheme_code, from_date=None, to_date=None) -> pd.DataFrame:
             logger.warning(f"[AMFI] No NAV data returned for scheme code {scheme_code}")
             return empty_frame("nav")
 
-        scheme_name = payload.get("meta", {}).get("scheme_name", "")
-
-        df = pd.DataFrame(payload["data"])
-        df["date"] = pd.to_datetime(df["date"], format="%d-%m-%Y", errors="coerce")
-        df["date"] = df["date"].astype("datetime64[ns]")
-        df["nav"] = pd.to_numeric(df["nav"], errors="coerce")
-
-        unreadable = df["date"].isna() | df["nav"].isna()
-        if unreadable.any():
-            logger.warning(
-                f"[AMFI] Dropped {int(unreadable.sum())} of {len(df)} rows with an "
-                f"unreadable date or NAV for scheme {scheme_code}"
-            )
-            df = df[~unreadable].copy()
-            if df.empty:
-                return empty_frame("nav")
-
-        df["nav"] = df["nav"].astype("float64")
-        df["scheme_code"] = int(scheme_code)
-        df["scheme_name"] = scheme_name
-        df["source"] = "AMFI"
-
-        df = df[columns]
-
-        # Convert standard YYYY-MM-DD input to filter against the data
-        if from_date:
-            df = df[df["date"] >= datetime.strptime(from_date, "%Y-%m-%d")]
-        if to_date:
-            df = df[df["date"] <= datetime.strptime(to_date, "%Y-%m-%d")]
-
-        df = df.sort_values("date").reset_index(drop=True)
-
-        return df.astype(SCHEMAS["nav"])
+        return _nav_frame_from_payload(payload, scheme_code, from_date, to_date)
 
     except Exception as e:
         logger.error(f"[AMFI] Exception for scheme {scheme_code}: {e}")
         return empty_frame("nav")
+
+
+def fetch_nav_outcome(scheme_code, from_date: Optional[str] = None,
+                      to_date: Optional[str] = None, *,
+                      max_attempts: int = 3) -> FetchOutcome:
+    """
+    Fetch NAV history from mfapi.in and say whether it FAILED or was EMPTY.
+
+    Same data as ``fetch_nav`` (it shares the parsing code), but transient
+    problems (connection errors, timeouts, HTTP 429/5xx, an unparseable
+    body) are retried with backoff, and the result separates three cases:
+
+    - OK: ``data`` is the NAV frame (source ``"AMFI"``).
+    - EMPTY: mfapi.in answered, and has no rows for this scheme or range
+      (for example an unknown scheme code). Not retried.
+    - FAILED: no usable answer after all attempts, or the arguments were
+      invalid. ``reason`` says why.
+
+    Args:
+        scheme_code  : AMFI scheme code, e.g. 119551
+        from_date    : Start date in YYYY-MM-DD format (optional)
+        to_date      : End date in YYYY-MM-DD format (optional)
+        max_attempts : Total tries for the request (default 3)
+
+    Returns:
+        FetchOutcome. Never raises.
+    """
+    try:
+        code = int(scheme_code)
+    except (TypeError, ValueError):
+        return FetchOutcome(Status.FAILED, None, f"invalid scheme code: {scheme_code!r}")
+    for value in (from_date, to_date):
+        if value:
+            try:
+                datetime.strptime(value, "%Y-%m-%d")
+            except (TypeError, ValueError):
+                return FetchOutcome(Status.FAILED, None,
+                                    f"invalid date {value!r}, use YYYY-MM-DD")
+
+    def operation() -> pd.DataFrame:
+        response = requests.get(f"{BASE_URL}/{code}", timeout=15)
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict) or not payload.get("data"):
+            return empty_frame("nav")
+        return _nav_frame_from_payload(payload, code, from_date, to_date)
+
+    return retry_call(operation, max_attempts=max_attempts, base_delay=1.0,
+                      label=f"AMFI mfapi scheme {code}", sleep=time.sleep)
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +360,9 @@ def fetch_nav_official(scheme_code, from_date: str, to_date: str) -> pd.DataFram
         pandas DataFrame with columns:
         date, scheme_code, scheme_name, nav, source ("AMFI_OFFICIAL")
         Sorted oldest to newest. Empty DataFrame on any failure; never raises.
+        ``df.attrs["failed_chunks"]`` lists the date ranges that could not be
+        read (empty list if none), so a caller can tell a complete result
+        from a partial one. attrs may be dropped by later pandas operations.
     """
     try:
         code = int(scheme_code)
@@ -353,7 +430,9 @@ def fetch_nav_official(scheme_code, from_date: str, to_date: str) -> pd.DataFram
         if not frames:
             logger.warning(f"[AMFI] No official NAV rows found for scheme {code} "
                            f"from {from_date} to {to_date}")
-            return empty_frame("nav")
+            empty = empty_frame("nav")
+            empty.attrs["failed_chunks"] = failed
+            return empty
 
         df = pd.concat(frames, ignore_index=True)
         df = df.drop_duplicates(subset=["date"]).sort_values("date").reset_index(drop=True)
@@ -363,7 +442,9 @@ def fetch_nav_official(scheme_code, from_date: str, to_date: str) -> pd.DataFram
         df["scheme_name"] = name
         df["source"] = _OFFICIAL_SOURCE
         df = df[["date", "scheme_code", "scheme_name", "nav", "source"]]
-        return df.astype(SCHEMAS["nav"])
+        df = df.astype(SCHEMAS["nav"])
+        df.attrs["failed_chunks"] = failed
+        return df
 
     except Exception as e:
         logger.error(f"[AMFI] Exception for official NAV of scheme {scheme_code}: {e}")
