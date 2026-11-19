@@ -48,6 +48,9 @@ import pandas as pd
 import requests
 
 from pyequity.connectors._session_utils import create_nse_session
+from pyequity.reliability.rate_limiter import RateLimiter
+from pyequity.reliability.retry import retry_call
+from pyequity.reliability.session import SessionManager
 from pyequity.schema import SCHEMAS, empty_frame
 
 logger = logging.getLogger(__name__)
@@ -170,6 +173,15 @@ def fetch_bulk_deals(from_date, to_date):
         return empty_frame("bulk_deals")
 
 
+def _weekdays(start: datetime, end: datetime):
+    """Yield every Monday-to-Friday date from ``start`` to ``end`` inclusive."""
+    day = start
+    while day <= end:
+        if day.weekday() < 5:
+            yield day
+        day += timedelta(days=1)
+
+
 def fetch_bulk_deals_by_day(from_date: str, to_date: str) -> pd.DataFrame:
     """
     Fetch Bulk Deals one calendar day at a time, so no day of the range is
@@ -214,35 +226,51 @@ def fetch_bulk_deals_by_day(from_date: str, to_date: str) -> pd.DataFrame:
         logger.error("[SEBI] from_date cannot be after to_date")
         return _empty()
 
-    try:
-        session = create_nse_session()
-    except Exception as e:
-        logger.error(f"[SEBI] Could not open an NSE session: {e}")
-        return _empty()
+    # One session is reused for the whole range and replaced only if a day
+    # fails (a stale or blocked session is the usual cause). Each day's
+    # request is retried on transient errors, and requests are spaced out.
+    sessions = SessionManager(lambda _key: create_nse_session(), sleep=time.sleep)
+    limiter = RateLimiter(1.0, sleep=time.sleep)
 
     frames: List[pd.DataFrame] = []
     capped: List[str] = []
     failed: List[str] = []
 
     day = start
-    first = True
     while day <= end:
         if day.weekday() < 5:
-            if not first:
-                time.sleep(1)
-            first = False
             label = day.strftime("%Y-%m-%d")
             fmt = day.strftime("%d-%m-%Y")
-            try:
-                data = _get_bulk_records(session, fmt, fmt)
-                if data:
-                    frame = _records_to_frame(data)
+
+            session_outcome = sessions.get()
+            if session_outcome.failed:
+                # No point retrying a dead network for every remaining day:
+                # report them all as failed and stop.
+                logger.error(f"[SEBI] Could not open an NSE session: {session_outcome.reason}")
+                failed.extend(d.strftime("%Y-%m-%d") for d in _weekdays(day, end))
+                break
+
+            limiter.wait("nseindia.com")
+            outcome = retry_call(
+                lambda: _get_bulk_records(session_outcome.data, fmt, fmt),
+                base_delay=2.0,
+                label=f"SEBI bulk deals {label}",
+                sleep=time.sleep,
+            )
+            if outcome.ok:
+                try:
+                    frame = _records_to_frame(outcome.data)
+                except Exception as e:
+                    logger.error(f"[SEBI] Could not read bulk deals records for {label}: {e}")
+                    failed.append(label)
+                else:
                     frames.append(frame)
                     if len(frame) >= _NSE_ROW_CAP:
                         capped.append(label)
-            except Exception as e:
-                logger.error(f"[SEBI] Bulk deals request failed for {label}: {e}")
+            elif outcome.failed:
+                logger.error(f"[SEBI] Bulk deals request failed for {label}: {outcome.reason}")
                 failed.append(label)
+                sessions.invalidate()
         day += timedelta(days=1)
 
     if capped:
