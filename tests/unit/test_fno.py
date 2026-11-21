@@ -6,7 +6,8 @@ import pandas as pd
 import pytest
 
 from pyequity.connectors import fno
-from pyequity.schema import SCHEMAS, columns_of
+from pyequity.reliability.outcome import FetchOutcome, Status
+from pyequity.schema import SCHEMAS, columns_of, empty_frame
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -299,3 +300,287 @@ def test_list_expiries_session_failure_returns_empty_list(monkeypatch):
 
 def test_list_expiries_empty_symbol():
     assert fno.list_expiries("  ") == []
+
+
+# ---------- fetch_fno_outcome: OK / EMPTY / FAILED ----------
+
+RANGE = ("RELIANCE", "2026-01-01", "2026-01-20")
+
+
+def test_outcome_ok_carries_the_frame(monkeypatch):
+    install(monkeypatch, FakeSession(futures_universe(10)))
+    outcome = fno.fetch_fno_outcome(*RANGE, "24-Nov-2026", "FUTSTK")
+    assert isinstance(outcome, FetchOutcome)
+    assert outcome.status is Status.OK and outcome.ok
+    assert not outcome.empty and not outcome.failed
+    assert outcome.reason == "" and outcome.attempts == 1
+    df = outcome.data
+    assert len(df) == 10 and list(df.columns) == columns_of("fno")
+    for col, dtype in SCHEMAS["fno"].items():
+        assert str(df[col].dtype) == dtype, col
+    assert (df["source"] == "NSE_FO").all()
+
+
+def test_outcome_empty_when_nse_has_no_rows(monkeypatch):
+    session = install(monkeypatch, FakeSession([]))
+    outcome = fno.fetch_fno_outcome(*RANGE)
+    assert outcome.status is Status.EMPTY and outcome.empty
+    assert not outcome.ok and not outcome.failed
+    assert outcome.reason
+    assert outcome.data.empty and list(outcome.data.columns) == columns_of("fno")
+    assert session.calls  # NSE really was asked
+
+
+def test_outcome_empty_when_every_returned_row_is_filtered_out(monkeypatch):
+    class OnlyOptions(FakeSession):
+        def get(self, url, params=None, timeout=None):
+            return FakeResponse([make_row(datetime(2026, 1, 5), EXPIRIES[0],
+                                          "OPTSTK", "CE", 1250)])
+    install(monkeypatch, OnlyOptions())
+    outcome = fno.fetch_fno_outcome("RELIANCE", "2026-01-05", "2026-01-05")
+    assert outcome.status is Status.EMPTY
+    assert outcome.data.empty and list(outcome.data.columns) == columns_of("fno")
+
+
+@pytest.mark.parametrize("args,kwargs,word", [
+    (("RELIANCE", "01/01/2026", "2026-02-01"), {}, "date"),
+    (("RELIANCE", "2026-03-01", "2026-02-01"), {}, "from_date"),
+    (("", "2026-01-01", "2026-02-01"), {}, "symbol"),
+    (("RELIANCE", "2026-01-01", "2026-02-01"), {"instrument_type": "XYZ"}, "instrument_type"),
+    (("RELIANCE", "2026-01-01", "2026-02-01"), {"instrument_type": "OPTSTK"}, "both"),
+    (("RELIANCE", "2026-01-01", "2026-02-01"),
+     {"instrument_type": "OPTSTK", "option_type": "XX", "strike_price": 1250}, "option_type"),
+    (("RELIANCE", "2026-01-01", "2026-02-01"),
+     {"instrument_type": "OPTSTK", "option_type": "CE", "strike_price": -5}, "strike_price"),
+    (("RELIANCE", "2026-01-01", "2026-02-01"), {"strike_price": 1250}, "only apply to options"),
+    (("RELIANCE", "2026-01-01", "2026-02-01"), {"expiry_date": "not-a-date"}, "expiry_date"),
+])
+def test_outcome_failed_for_invalid_arguments_without_fetching(monkeypatch, args, kwargs, word):
+    session = install(monkeypatch, FakeSession(futures_universe(30)))
+    outcome = fno.fetch_fno_outcome(*args, **kwargs)
+    assert outcome.status is Status.FAILED and outcome.failed
+    assert outcome.data is None
+    assert word in outcome.reason
+    assert session.calls == []
+
+
+def test_outcome_failed_when_session_cannot_be_created(monkeypatch):
+    def boom(*a, **k):
+        raise ConnectionError("dropped")
+    monkeypatch.setattr(fno, "create_nse_session", boom)
+    outcome = fno.fetch_fno_outcome(*RANGE)
+    assert outcome.failed and outcome.data is None
+    assert "session" in outcome.reason and "dropped" in outcome.reason
+
+
+def test_outcome_failed_request_is_never_partial_and_not_retried(monkeypatch, caplog):
+    session = install(monkeypatch, FakeSession(futures_universe(150), fail_on_call=3))
+    with caplog.at_level(logging.ERROR, logger="pyequity.connectors.fno"):
+        outcome = fno.fetch_fno_outcome("RELIANCE", "2026-01-01", "2026-12-31")
+    assert outcome.failed and outcome.data is None
+    assert "request failed" in outcome.reason
+    assert outcome.attempts == 1
+    assert len(session.calls) == 3  # stopped at the failing call, no retry
+    assert any("could not be guaranteed" in r.message for r in caplog.records)
+
+
+def test_outcome_failed_on_the_very_first_request(monkeypatch):
+    session = install(monkeypatch, FakeSession(futures_universe(10), fail_on_call=1))
+    outcome = fno.fetch_fno_outcome(*RANGE)
+    assert outcome.failed and len(session.calls) == 1
+
+
+def test_outcome_failed_when_single_day_reaches_the_row_cap(monkeypatch, caplog):
+    day = datetime(2026, 11, 13)
+    universe = [make_row(day, day + timedelta(days=i)) for i in range(80)]
+    install(monkeypatch, FakeSession(universe))
+    with caplog.at_level(logging.ERROR, logger="pyequity.connectors.fno"):
+        outcome = fno.fetch_fno_outcome("RELIANCE", "2026-11-13", "2026-11-13")
+    assert outcome.failed and outcome.data is None
+    assert "row cap" in outcome.reason and "narrow" in outcome.reason
+    assert any("cap" in r.message for r in caplog.records)
+
+
+def test_outcome_failed_for_unexpected_response_shape(monkeypatch):
+    class Odd(FakeSession):
+        def get(self, url, params=None, timeout=None):
+            return FakeResponse({"message": "blocked"})
+    install(monkeypatch, Odd())
+    outcome = fno.fetch_fno_outcome(*RANGE)
+    assert outcome.failed and outcome.data is None
+
+
+def test_outcome_failed_when_the_request_raises(monkeypatch):
+    class Raises(FakeSession):
+        def get(self, url, params=None, timeout=None):
+            raise RuntimeError("socket closed")
+    install(monkeypatch, Raises())
+    outcome = fno.fetch_fno_outcome(*RANGE)  # must not raise
+    assert outcome.failed and outcome.data is None
+
+
+def test_failed_is_not_empty_and_empty_is_not_failed(monkeypatch):
+    install(monkeypatch, FakeSession([]))
+    empty = fno.fetch_fno_outcome(*RANGE)
+    install(monkeypatch, FakeSession([], fail_on_call=1))
+    failed = fno.fetch_fno_outcome(*RANGE)
+    assert empty.status is Status.EMPTY and failed.status is Status.FAILED
+    assert empty.data is not None and failed.data is None
+
+
+# ---------- fetch_fno_data stays a faithful wrapper ----------
+
+def _scenario(monkeypatch, name):
+    if name == "ok":
+        return install(monkeypatch, FakeSession(futures_universe(10)))
+    if name == "empty":
+        return install(monkeypatch, FakeSession([]))
+    return install(monkeypatch, FakeSession(futures_universe(150), fail_on_call=3))
+
+
+@pytest.mark.parametrize("name", ["ok", "empty", "failed"])
+def test_wrapper_returns_exactly_what_the_outcome_holds(monkeypatch, name):
+    args = ("RELIANCE", "2026-01-01", "2026-12-31" if name == "failed" else "2026-01-20")
+    session = _scenario(monkeypatch, name)
+    outcome = fno.fetch_fno_outcome(*args)
+    calls_for_outcome = len(session.calls)
+
+    session = _scenario(monkeypatch, name)
+    legacy = fno.fetch_fno_data(*args)
+
+    assert len(session.calls) == calls_for_outcome  # same requests, no extras
+    expected = outcome.data if outcome.ok else empty_frame("fno")
+    pd.testing.assert_frame_equal(legacy, expected)
+    assert list(legacy.columns) == columns_of("fno")
+    assert legacy.empty == (name != "ok")
+
+
+def test_wrapper_passes_every_argument_through(monkeypatch):
+    rows = [make_row(d, EXPIRIES[0], "OPTSTK", "CE", 1250)
+            for d in weekdays(datetime(2026, 1, 1), 5)]
+    session = install(monkeypatch, FakeSession(rows))
+    df = fno.fetch_fno_data("reliance", "2026-01-01", "2026-01-10", "24-Nov-2026",
+                            "optstk", strike_price=1250.0, option_type="ce")
+    p = session.calls[0][1]
+    assert p["expiryDate"] == "24-Nov-2026" and p["instrumentType"] == "OPTSTK"
+    assert p["strikePrice"] == "1250" and p["optionType"] == "CE" and len(df) == 5
+
+
+# ---------- list_expiries_outcome ----------
+
+def test_expiries_outcome_ok_sorted_iso(monkeypatch):
+    info = {"expiryDates": ["29-Dec-2026", "23-Nov-2026", "25-Jan-2027"]}
+    session = install(monkeypatch, FakeSession(info=info))
+    outcome = fno.list_expiries_outcome("reliance")
+    assert outcome.status is Status.OK and outcome.ok
+    assert outcome.data == ["2026-11-23", "2026-12-29", "2027-01-25"]
+    assert outcome.reason == "" and outcome.attempts == 1
+    assert session.calls[0][1] == {"symbol": "RELIANCE"}
+
+
+def test_expiries_outcome_empty_for_an_explicit_empty_list(monkeypatch, caplog):
+    install(monkeypatch, FakeSession(info={"expiryDates": []}))
+    with caplog.at_level(logging.WARNING, logger="pyequity.connectors.fno"):
+        outcome = fno.list_expiries_outcome("NOTASYMBOL123")
+    assert outcome.status is Status.EMPTY and outcome.empty
+    assert outcome.data == [] and outcome.reason
+    assert any("No expiries listed" in r.message for r in caplog.records)
+
+
+@pytest.mark.parametrize("info", [
+    {"expiryDates": "x"}, {"expiryDates": None}, [], None,
+    {"message": "blocked"}, {"strikePrice": ["560"]}, "{}", 0,
+])
+def test_expiries_outcome_failed_when_there_is_no_list_of_expiries(monkeypatch, info):
+    install(monkeypatch, FakeSession(info=info))
+    outcome = fno.list_expiries_outcome("RELIANCE")
+    assert outcome.status is Status.FAILED and outcome.data is None
+    assert "shape" in outcome.reason
+
+
+def test_expiries_outcome_empty_for_the_empty_object_nse_sends_for_unknown_symbols(
+        monkeypatch, caplog):
+    # Observed live (2026-11): an unknown symbol gives HTTP 200 and exactly {}.
+    install(monkeypatch, FakeSession(info={}))
+    with caplog.at_level(logging.WARNING, logger="pyequity.connectors.fno"):
+        outcome = fno.list_expiries_outcome("NOTASYMBOL123")
+    assert outcome.status is Status.EMPTY and outcome.empty
+    assert outcome.data == [] and outcome.reason
+    assert any("No expiries listed" in r.message for r in caplog.records)
+
+
+def test_expiries_outcome_failed_when_the_body_is_not_json(monkeypatch):
+    class NotJson(FakeSession):
+        def get(self, url, params=None, timeout=None):
+            class Resp:
+                status_code = 200
+                def json(self):
+                    raise ValueError("Expecting value")
+            return Resp()
+    install(monkeypatch, NotJson())
+    outcome = fno.list_expiries_outcome("RELIANCE")
+    assert outcome.failed and outcome.data is None and "Expecting value" in outcome.reason
+
+
+def test_expiries_outcome_failed_on_http_error(monkeypatch):
+    session = install(monkeypatch, FakeSession(info={"expiryDates": ["23-Nov-2026"]},
+                                               fail_on_call=1))
+    outcome = fno.list_expiries_outcome("RELIANCE")
+    assert outcome.failed and outcome.data is None and "500" in outcome.reason
+    assert len(session.calls) == 1  # no retry
+
+
+def test_expiries_outcome_failed_when_session_cannot_be_created(monkeypatch):
+    def boom(*a, **k):
+        raise ConnectionError("dropped")
+    monkeypatch.setattr(fno, "create_nse_session", boom)
+    outcome = fno.list_expiries_outcome("RELIANCE")
+    assert outcome.failed and "dropped" in outcome.reason
+
+
+def test_expiries_outcome_failed_for_empty_symbol_without_a_request(monkeypatch):
+    session = install(monkeypatch, FakeSession(info={"expiryDates": ["23-Nov-2026"]}))
+    outcome = fno.list_expiries_outcome("  ")
+    assert outcome.failed and "symbol" in outcome.reason
+    assert session.calls == []
+
+
+def test_expiries_outcome_skips_junk_but_fails_when_nothing_is_readable(monkeypatch):
+    install(monkeypatch, FakeSession(info={"expiryDates": ["23-Nov-2026", "junk"]}))
+    assert fno.list_expiries_outcome("RELIANCE").data == ["2026-11-23"]
+    install(monkeypatch, FakeSession(info={"expiryDates": ["junk", "also junk"]}))
+    outcome = fno.list_expiries_outcome("RELIANCE")
+    assert outcome.failed and outcome.data is None and "read" in outcome.reason
+
+
+@pytest.mark.parametrize("info,fail_on_call", [
+    ({"expiryDates": ["29-Dec-2026", "23-Nov-2026"]}, None),   # ok
+    ({"expiryDates": []}, None),                               # empty
+    ({}, None),                                                # empty: unknown symbol
+    ({"message": "blocked"}, None),                            # failed: bad shape
+    ({"expiryDates": ["23-Nov-2026"]}, 1),                     # failed: HTTP error
+])
+def test_list_expiries_wrapper_matches_the_outcome(monkeypatch, info, fail_on_call):
+    install(monkeypatch, FakeSession(info=info, fail_on_call=fail_on_call))
+    outcome = fno.list_expiries_outcome("RELIANCE")
+    install(monkeypatch, FakeSession(info=info, fail_on_call=fail_on_call))
+    legacy = fno.list_expiries("RELIANCE")
+    assert isinstance(legacy, list)
+    assert legacy == (outcome.data if outcome.ok else [])
+def test_outcome_failed_when_processing_raises_after_the_fetch(monkeypatch, caplog):
+    install(monkeypatch, FakeSession(futures_universe(5)))
+
+    def boom(self, *a, **k):
+        raise RuntimeError("post-processing exploded")
+
+    monkeypatch.setattr(pd.DataFrame, "drop_duplicates", boom)
+
+    with caplog.at_level(logging.ERROR, logger="pyequity.connectors.fno"):
+        outcome = fno.fetch_fno_outcome(*RANGE, "24-Nov-2026", "FUTSTK")
+        legacy = fno.fetch_fno_data(*RANGE, "24-Nov-2026", "FUTSTK")
+
+    assert outcome.failed and outcome.data is None
+    assert "RuntimeError" in outcome.reason
+    assert "post-processing exploded" in outcome.reason
+    assert legacy.empty and list(legacy.columns) == columns_of("fno")
+    assert any("post-processing exploded" in r.message for r in caplog.records)
