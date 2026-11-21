@@ -15,6 +15,11 @@ symbol, and parses NSE's free-text description into structured columns
   list with HTTP 200. An empty result therefore does NOT prove the symbol is
   invalid. A symbol that changed name keeps its history under the old or the
   new symbol depending on NSE (TATAMOTORS returned nothing; TMPV did).
+
+``fetch_corporate_actions`` keeps its contract (an empty frame for every
+problem). ``fetch_corporate_actions_outcome`` does the same work but returns a
+``FetchOutcome`` that says whether the call FAILED or was genuinely EMPTY; the
+older function is a thin wrapper around it.
 """
 import logging
 from datetime import datetime, timedelta
@@ -24,6 +29,7 @@ import pandas as pd
 
 from pyequity.connectors._action_parser import parse_action_details
 from pyequity.connectors._session_utils import create_nse_session
+from pyequity.reliability.outcome import FetchOutcome, Status
 from pyequity.schema import SCHEMAS, columns_of, empty_frame
 
 logger = logging.getLogger(__name__)
@@ -50,11 +56,17 @@ def _clean_isin(value: object) -> Optional[str]:
     return value if value and value != "-" else None
 
 
+def _failed(reason: str) -> FetchOutcome:
+    """Internal: a FAILED outcome (no usable answer could be obtained)."""
+    return FetchOutcome(Status.FAILED, None, reason)
+
+
 def fetch_corporate_actions(symbol: str, from_date: Optional[str] = None,
                             to_date: Optional[str] = None) -> pd.DataFrame:
     """
     Fetch corporate actions for one NSE symbol.
 
+    Backward-compatible wrapper around ``fetch_corporate_actions_outcome``.
     Without dates the full available history is requested (from 1990-01-01,
     up to one year ahead so announced upcoming actions are included). Earlier
     versions sent no dates and got only about 20 rows.
@@ -62,7 +74,8 @@ def fetch_corporate_actions(symbol: str, from_date: Optional[str] = None,
     Failures (network error, bad response, bad arguments) are logged and give
     an empty frame; nothing raises. An empty frame can also mean the symbol
     has no actions, or the symbol is unknown or was renamed: NSE does not
-    distinguish these.
+    distinguish these. Use ``fetch_corporate_actions_outcome`` to tell a
+    failure apart from a genuinely empty answer.
 
     Args:
         symbol: NSE symbol, e.g. "RELIANCE".
@@ -82,10 +95,45 @@ def fetch_corporate_actions(symbol: str, from_date: Optional[str] = None,
         not parsed cleanly; do not adjust prices from such rows.
         Rows are in NSE's order (newest first).
     """
+    outcome = fetch_corporate_actions_outcome(symbol, from_date, to_date)
+    if outcome.failed or outcome.data is None:
+        return empty_frame(_DATASET)
+    return outcome.data
+
+
+def fetch_corporate_actions_outcome(symbol: str, from_date: Optional[str] = None,
+                                    to_date: Optional[str] = None) -> FetchOutcome:
+    """
+    Fetch corporate actions for one NSE symbol and report how the fetch ended.
+
+    Same request, parsing and filtering as ``fetch_corporate_actions`` (which
+    wraps this function), but a failure is kept apart from an empty answer:
+
+    - OK: ``data`` is the corporate actions frame with at least one row.
+    - EMPTY: NSE answered successfully but there are no rows to return: an
+      empty list, or every row was removed by the symbol or date-window
+      filters. ``data`` is an empty frame in the standard schema. NSE returns
+      the same answer for an unknown or renamed symbol, so EMPTY does not
+      prove the symbol is invalid.
+    - FAILED: invalid arguments, a request or session error, a response that
+      cannot be parsed or has the wrong structure, a missing ``exDate`` or
+      ``subject`` field, or an error while processing. ``data`` is ``None``
+      and ``reason`` says why.
+
+    Args:
+        symbol: NSE symbol, e.g. "RELIANCE".
+        from_date: Optional start of the ex-date range, YYYY-MM-DD.
+        to_date: Optional end of the ex-date range, YYYY-MM-DD.
+
+    The request is made once; there are no retries.
+
+    Returns:
+        FetchOutcome. Never raises.
+    """
     symbol = str(symbol).strip().upper() if symbol is not None else ""
     if not symbol:
         logger.error("[Corporate] symbol is required")
-        return empty_frame(_DATASET)
+        return _failed("symbol is required")
 
     try:
         start = datetime.strptime(from_date or _DEFAULT_FROM, "%Y-%m-%d")
@@ -95,10 +143,10 @@ def fetch_corporate_actions(symbol: str, from_date: Optional[str] = None,
             end = datetime.strptime(to_date, "%Y-%m-%d")
     except (ValueError, TypeError):
         logger.error("[Corporate] Invalid date format. Use YYYY-MM-DD")
-        return empty_frame(_DATASET)
+        return _failed("invalid date format, use YYYY-MM-DD")
     if start > end:
         logger.error("[Corporate] from_date cannot be after to_date")
-        return empty_frame(_DATASET)
+        return _failed("from_date cannot be after to_date")
 
     try:
         session = create_nse_session()
@@ -113,26 +161,27 @@ def fetch_corporate_actions(symbol: str, from_date: Optional[str] = None,
         payload = response.json()
     except Exception as e:
         logger.error(f"[Corporate] Error fetching actions for {symbol}: {e}")
-        return empty_frame(_DATASET)
+        return _failed(f"request failed: {type(e).__name__}: {e}")
 
     try:
         if isinstance(payload, dict) and isinstance(payload.get("data"), list):
             payload = payload["data"]
         if not isinstance(payload, list) or not all(isinstance(r, dict) for r in payload):
             logger.error(f"[Corporate] Unexpected response shape for {symbol}")
-            return empty_frame(_DATASET)
+            return _failed("unexpected response structure")
         if not payload:
             logger.warning(
                 f"[Corporate] No actions returned for {symbol} between "
                 f"{start.date()} and {end.date()} (NSE returns the same empty "
                 f"answer for an unknown or renamed symbol)")
-            return empty_frame(_DATASET)
+            return FetchOutcome(Status.EMPTY, empty_frame(_DATASET),
+                                "NSE returned no corporate actions")
 
         raw = pd.DataFrame(payload)
         missing = [c for c in ("exDate", "subject") if c not in raw.columns]
         if missing:
             logger.error(f"[Corporate] Response for {symbol} lacks field(s) {missing}")
-            return empty_frame(_DATASET)
+            return _failed(f"response lacks required field(s) {missing}")
         for col in ("recDate", "isin", "symbol"):
             if col not in raw.columns:
                 raw[col] = None
@@ -145,6 +194,9 @@ def fetch_corporate_actions(symbol: str, from_date: Optional[str] = None,
             logger.warning(f"[Corporate] Dropped {int(wrong.sum())} row(s) that "
                            f"belong to a different symbol than {symbol}")
             raw, api_symbol = raw[~wrong], api_symbol[~wrong]
+        if raw.empty:
+            return FetchOutcome(Status.EMPTY, empty_frame(_DATASET),
+                                f"no rows for symbol {symbol} after filtering")
         raw = raw.reset_index(drop=True)
         api_symbol = api_symbol.reset_index(drop=True)
 
@@ -174,17 +226,18 @@ def fetch_corporate_actions(symbol: str, from_date: Optional[str] = None,
                            f"{start.date()}..{end.date()}")
             out = out[~outside].reset_index(drop=True)
         if out.empty:
-            return empty_frame(_DATASET)
+            return FetchOutcome(Status.EMPTY, empty_frame(_DATASET),
+                                f"no rows for {symbol} within {start.date()}..{end.date()}")
 
         out = out[columns_of(_DATASET)].astype(SCHEMAS[_DATASET])
 
         review = int((out["parse_status"] == "needs_review").sum())
         logger.info(f"[Corporate] {symbol}: {len(out)} rows, {review} need review")
-        return out
+        return FetchOutcome(Status.OK, out)
 
     except Exception as e:
         logger.error(f"[Corporate] Error processing actions for {symbol}: {e}")
-        return empty_frame(_DATASET)
+        return _failed(f"processing failed: {type(e).__name__}: {e}")
 
 
 def extract_action_type(action_detail):

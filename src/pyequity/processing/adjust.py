@@ -40,11 +40,15 @@ Rules for ``adjust_prices``
   index are unchanged.
 * Prices of several symbols are matched to actions per symbol, ignoring case.
 * A skipped price-affecting event inside the price range triggers a logger
-  warning and one ``UserWarning`` per call. Prices are never altered because
-  of a warning.
+  warning and one ``IncompleteDataWarning`` per call. Prices are never altered
+  because of a warning.
 * After adjusting, the adjusted previous close is compared with the ex-date
-  close at every applied ex-date. A ratio outside 0.7 to 1.4 only warns (it
-  suggests already-adjusted prices or a wrong ratio).
+  close at every applied ex-date. A ratio outside 0.7 to 1.4 only warns, with
+  a ``DataQualityWarning`` (it suggests already-adjusted prices or a wrong
+  ratio).
+
+Both warning classes come from ``pyequity.api._errors`` and are subclasses of
+``UserWarning``, so code that filters or catches ``UserWarning`` keeps working.
 
 Fail-safe errors: not a DataFrame raises ``TypeError``. A prices frame missing
 required columns, or an actions frame missing the parsed columns, is logged and
@@ -68,6 +72,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from pyequity.api._errors import DataQualityWarning, IncompleteDataWarning
 from pyequity.schema import empty_frame
 
 logger = logging.getLogger(__name__)
@@ -412,9 +417,11 @@ def adjust_prices(prices: pd.DataFrame, actions: pd.DataFrame) -> pd.DataFrame:
         ``empty_frame("equity")`` and logs an error.
 
     Warns:
-        UserWarning: a price-affecting action inside the price range was not
-        applied, or an applied ex-date fails the 0.7 to 1.4 sanity check. The
-        prices are not changed because of a warning.
+        IncompleteDataWarning: a price-affecting action inside the price range
+            was not applied, so earlier prices are still unadjusted for it.
+        DataQualityWarning: an applied ex-date fails the 0.7 to 1.4 sanity
+            check. The prices are not changed because of a warning.
+        Both are ``PyEquityWarning`` and ``UserWarning`` subclasses.
 
     Raises:
         TypeError: an argument is not a DataFrame.
@@ -537,10 +544,11 @@ def adjust_prices(prices: pd.DataFrame, actions: pd.DataFrame) -> pd.DataFrame:
     if skipped_notes:
         warnings.warn("price-affecting corporate action(s) were NOT applied, so prices before "
                       "these dates are still unadjusted for them: " + " || ".join(skipped_notes),
-                      UserWarning, stacklevel=2)
+                      IncompleteDataWarning, stacklevel=2)
     if sanity_notes:
         warnings.warn("adjusted prices fail the continuity check (already-adjusted prices or a wrong "
-                      "ratio?): " + " || ".join(sanity_notes), UserWarning, stacklevel=2)
+                      "ratio?): " + " || ".join(sanity_notes), DataQualityWarning,
+                      stacklevel=2)
 
     logger.info("[Adjust] %d event(s) applied, %d future event(s) not applied, %d price-affecting "
                 "action(s) skipped, %d of %d rows scaled",

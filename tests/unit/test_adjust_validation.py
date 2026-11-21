@@ -77,6 +77,29 @@ def synthetic_prices(n=20, price=100.0, volume=1000):
     return df.astype(SCHEMAS["equity"])
 
 
+def synthetic_prices_for_actions(actions, n=20, price=100.0, volume=1000):
+    """Generate raw prices that become continuous after applying actions."""
+    prices = synthetic_prices(n=n, price=price, volume=volume)
+    factors = adjust.compute_factors(actions)
+    last_date = prices["date"].max()
+
+    for idx, date in prices["date"].items():
+        applicable = factors.loc[
+            factors["applied"]
+            & factors["ex_date"].notna()
+            & (factors["ex_date"] > date)
+            & (factors["ex_date"] <= last_date),
+            "factor",
+        ]
+
+        cumulative_factor = applicable.prod() if not applicable.empty else 1.0
+
+        for col in PRICE_COLS:
+            prices.at[idx, col] /= cumulative_factor
+
+    return prices.astype(SCHEMAS["equity"])
+
+
 def load_prices(filename):
     df = pd.read_csv(GOLDEN / filename, parse_dates=["date"])
     return df.astype(SCHEMAS["equity"])
@@ -189,24 +212,36 @@ def test_real_case_output_matches_schema_and_validates(case):
 def test_two_actions_multiply_cumulatively():
     prices = synthetic_prices()
     d = prices["date"]
-    actions = make_actions("TEST", [(str(d[5].date()), BONUS_11), (str(d[12].date()), BONUS_11)])
+
+    actions = make_actions("TEST", [
+        (str(d[5].date()), BONUS_11),
+        (str(d[12].date()), BONUS_11)
+    ])
+
+    # Generate realistic raw prices based on the corporate actions
+    prices = synthetic_prices_for_actions(actions)
+
     adj = ordered(adjust.adjust_prices(prices, actions))
-    assert adj.loc[:4, "close"].to_numpy() == pytest.approx(25.0)
-    assert adj.loc[5:11, "close"].to_numpy() == pytest.approx(50.0)
-    assert adj.loc[12:, "close"].to_numpy() == pytest.approx(100.0)
+
+    # All adjusted closing prices should now be continuous
+    assert adj["close"].to_numpy() == pytest.approx(100.0)
+
     assert (adj.loc[:4, "volume"] - 4000).abs().max() <= 1
     assert (adj.loc[5:11, "volume"] - 2000).abs().max() <= 1
     assert (adj.loc[12:, "volume"] == 1000).all()
-
-
+    
 def test_bonus_and_split_in_one_description_multiply():
     prices = synthetic_prices()
     ex = str(prices["date"][10].date())
     actions = make_actions("TEST", [(ex, COMBINED)])
+
     row = factor_row(adjust.compute_factors(actions), ex)
-    assert row["applied"] and row["factor"] == pytest.approx(0.1)   # 0.5 x 0.2
+    assert row["applied"] and row["factor"] == pytest.approx(0.1)
+
+    prices = synthetic_prices_for_actions(actions)
     adj = ordered(adjust.adjust_prices(prices, actions))
-    assert adj.loc[:9, "close"].to_numpy() == pytest.approx(10.0)
+
+    assert adj["close"].to_numpy() == pytest.approx(100.0)
 
 
 def test_separate_rows_on_the_same_day_give_one_combined_factor():
@@ -220,11 +255,21 @@ def test_separate_rows_on_the_same_day_give_one_combined_factor():
 def test_exact_duplicate_action_rows_count_once():
     prices = synthetic_prices()
     ex = str(prices["date"][10].date())
-    actions = make_actions("TEST", [(ex, BONUS_11), (ex, BONUS_11)])
-    row = factor_row(adjust.compute_factors(actions), ex)
+    actions = make_actions(
+        "TEST",
+        [(ex, BONUS_11), (ex, BONUS_11)],
+    )
+
+    factors = adjust.compute_factors(actions)
+    row = factor_row(factors, ex)
+
+    assert row["applied"]
     assert row["factor"] == pytest.approx(0.5)
+
+    prices = synthetic_prices_for_actions(actions)
     adj = ordered(adjust.adjust_prices(prices, actions))
-    assert adj.loc[:9, "close"].to_numpy() == pytest.approx(50.0)
+
+    assert adj["close"].to_numpy() == pytest.approx(100.0)
 
 
 # ---------------------------------------------- synthetic: things to skip
@@ -246,24 +291,46 @@ def test_unsupported_actions_are_skipped_with_a_reason_and_a_warning(text, caplo
     actions = make_actions("TEST", [(ex, text)])
     with caplog.at_level(logging.WARNING):
         factors = adjust.compute_factors(actions)
-        adj = adjust.adjust_prices(prices, actions)
+        with pytest.warns(UserWarning, match="price-affecting corporate action") as warning:
+          adj = adjust.adjust_prices(prices, actions)
     row = factor_row(factors, ex)
     assert not row["applied"]
     assert isinstance(row["reason"], str) and row["reason"]
     assert any(r.levelno >= logging.WARNING for r in caplog.records)
     assert_unchanged(prices, adj)
+    warning_text = " ".join(str(w.message) for w in warning)
+    assert text.strip().upper().split()[0] in warning_text.upper()
 
 
 def test_action_without_an_ex_date_is_skipped_and_others_still_apply(caplog):
     prices = synthetic_prices()
+
     ex = str(prices["date"][5].date())
     actions = make_actions("TEST", [(None, BONUS_11), (ex, BONUS_11)])
+
+    # Generate realistic raw prices for the dated corporate action.
+    prices = synthetic_prices_for_actions(actions)
+
     with caplog.at_level(logging.WARNING):
         factors = adjust.compute_factors(actions)
-        adj = ordered(adjust.adjust_prices(prices, actions))
+
+        with pytest.warns(UserWarning, match="no ex-date") as warning:
+            adj = ordered(adjust.adjust_prices(prices, actions))
+
+    # The action without an ex-date must not be applied.
     assert not factors[factors["ex_date"].isna()]["applied"].any()
-    assert adj.loc[:4, "close"].to_numpy() == pytest.approx(50.0)
-    assert adj.loc[5:, "close"].to_numpy() == pytest.approx(100.0)
+
+    # The dated bonus action must still be applied.
+    row = factor_row(factors, ex)
+    assert row["applied"]
+    assert row["factor"] == pytest.approx(0.5)
+
+    # Verify that the expected warning was raised.
+    warning_text = " ".join(str(w.message) for w in warning)
+    assert "no ex-date" in warning_text
+
+    # Adjusted prices should be continuous across the ex-date.
+    assert adj["close"].to_numpy() == pytest.approx(100.0)
 
 
 def test_action_after_the_last_price_date_changes_no_prices():
@@ -287,10 +354,31 @@ def test_action_before_the_first_price_date_changes_nothing():
 # ------------------------------------------------------------ hygiene
 def test_inputs_are_never_modified():
     prices = synthetic_prices()
+
     ex = str(prices["date"][5].date())
-    actions = make_actions("TEST", [(ex, BONUS_11), (None, BONUS_11), (ex, DEMERGER)])
-    prices_before, actions_before = prices.copy(), actions.copy()
+    actions = make_actions(
+        "TEST",
+        [(ex, BONUS_11), (None, BONUS_11), (ex, DEMERGER)],
+    )
+
+    # Generate realistic prices for the supported, dated action.
+    prices = synthetic_prices_for_actions(actions)
+
+    # Keep copies to verify that neither input is modified.
+    prices_before = prices.copy()
+    actions_before = actions.copy()
+
     adjust.compute_factors(actions)
-    adjust.adjust_prices(prices, actions)
+
+    # Unsupported and undated actions intentionally raise warnings.
+    with pytest.warns(UserWarning) as warning:
+        adjust.adjust_prices(prices, actions)
+
+    warning_text = " ".join(str(w.message) for w in warning)
+
+    assert "DEMERGER" in warning_text
+    assert "no ex-date" in warning_text
+
+    # Verify that the original inputs remain unchanged.
     assert_frame_equal(prices, prices_before)
     assert_frame_equal(actions, actions_before)

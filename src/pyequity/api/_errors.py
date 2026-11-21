@@ -34,7 +34,11 @@ class FallbackWarning(PyEquityWarning):
 
 
 class IncompleteDataWarning(PyEquityWarning):
-    """The result is known to be missing rows (capped or failed requests)."""
+    """The result is known to be incomplete.
+
+    Rows are missing (capped or failed requests), or price-affecting corporate
+    actions could not be applied by ``adjust_prices``.
+    """
 
 
 class EmptyResultWarning(PyEquityWarning):
